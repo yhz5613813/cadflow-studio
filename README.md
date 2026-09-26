@@ -49,13 +49,13 @@ CadFlow Skill 已包含在源码和分发包的 `resources/cadflow/` 中，不�
 
 ## 场景包与源码关联
 
-支持 CadFlow Scene 1.0 ZIP 和 SimpleCADAPI 产品包 3.0 `.scadpkg`。CadFlow 使用随应用发布的上游 TypeScript 合约校验器检查规范 ZIP、资源闭包、摘要、GLB、实体与嵌入源码引用；SimpleCADAPI 使用上游产品包读取器检查物理成员闭包与摘要、Scene 2.0 结构，并增加装配层级、刚体坐标系、特征依赖和源码行号校验。校验失败会给出错误，不降级为无关 GLB 的叠加预览。
+支持 CadFlow Scene 1.0 ZIP 和产品包 3.0 `.scadpkg`。CadFlow 使用随应用发布的上游 TypeScript 合约校验器检查规范 ZIP、资源闭包、摘要、GLB、实体与嵌入源码引用；`.scadpkg` 使用上游产品包读取器检查物理成员闭包与摘要、Scene 2.0 结构，并增加装配层级、刚体坐标系、特征依赖和源码行号校验。校验失败会给出错误，不降级为无关 GLB 的叠加预览。
 
 加载按父子关系组合实例变换，将正式场景 GLB 的米制 Y-up 转换为毫米 Z-up。同一个几何资源可以供多个不同位置的实例共享。CadFlow 包内外观与初始显隐保留。普通 ZIP 只允许一个明确的 `model.glb` / `preview.glb`，或唯一 GLB；多个独立 GLB 没有装配清单时会拒绝猜测位置。
 
 「场景与特征」可选择节点、搜索特征、查看参数和依赖、跳转到嵌入源码的对应行。源码快照只读，独立于当前项目源码编辑器。加入对话草稿会附带特征 ID、参数、源码行号和包 SHA-256，不会自动发送。选择上下文附带场景节点与定义 ID；这些 ID 不代替尚未接入的原生面/边/点选择。
 
-本轮验证范围是预览与溯源，不执行包内源码，也不重新求解装配或重建 BREP。SimpleCADAPI 的复合产品/特征归档沿用上游 Viewer 的校验边界，尚未重建其内部产品语义闭包；目前使用合约夹具验证兼容性，完整 SDK 导出的复杂产品包还需补充验收。连接器/关节当前显示数量，尚未提供编辑与求解界面。上游版本、许可与适配说明位于 `resources/contracts/`。
+本轮验证范围是预览与溯源，不执行包内源码，也不重新求解装配或重建 BREP。复合产品/特征归档沿用上游 Viewer 的校验边界，尚未重建其内部产品语义闭包；目前使用合约夹具验证兼容性，完整 SDK 导出的复杂产品包还需补充验收。连接器/关节当前显示数量，尚未提供编辑与求解界面。上游版本、许可与适配说明位于 `resources/contracts/`。
 
 ## STEP 导入与面选择
 
@@ -202,7 +202,6 @@ STEP 测试使用真实 OCCT WASM 与其公开 STEP 样例，验证毫米/米/�
 - [CadFlow Skill](https://github.com/zion-zion-zion/CadFlow-Skill)：内置资源，提交 `345687dc6cc0d195d123729e896e44908cd901b0`；MIT 许可证保留在资源目录。
 - [pi](https://github.com/earendil-works/pi)：Agent SDK。
 - [CadFlow](https://github.com/yhz5613813/CadFlow)：Skill 指导使用的 CAD 内核。
-- [SimpleCADAPI](https://github.com/NiJingzhe/SimpleCADAPI)：交互布局参考。
 - [occt-import-js 0.0.23](https://github.com/kovacsv/occt-import-js)：独立的 STEP 预览适配器。未修改的 JS/WASM 和许可证保存在 `public/vendor/occt/`；来源及替换说明见该目录 README。`npm run preview:prepare` 从锁定的 npm 依赖准备这些文件。
 
 第三方资源保留各自许可证。源码包包含内置 CadFlow Skill，不包含用户项目、凭据、node_modules 或额外安装的扩展。
