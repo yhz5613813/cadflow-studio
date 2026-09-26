@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "title": "中心通孔板件",
+  "parameters": [
+    { "name": "width", "label": "宽度", "type": "number", "unit": "mm", "value": 80, "min": 5, "max": 1000, "step": 1 },
+    { "name": "height", "label": "高度", "type": "number", "unit": "mm", "value": 50, "min": 5, "max": 1000, "step": 1 },
+    { "name": "thickness", "label": "厚度", "type": "number", "unit": "mm", "value": 8, "min": 0.5, "max": 100, "step": 0.5 },
+    { "name": "hole_diameter", "label": "孔径", "type": "number", "unit": "mm", "value": 12, "min": 1, "max": 900, "step": 0.5 }
+  ],
+  "constraints": [
+    { "terms": { "width": 1, "hole_diameter": -1 }, "min": 2, "message": "孔径必须比宽度至少小 2 mm，两侧各保留 1 mm 材料" },
+    { "terms": { "height": 1, "hole_diameter": -1 }, "min": 2, "message": "孔径必须比高度至少小 2 mm，两侧各保留 1 mm 材料" }
+  ]
+}

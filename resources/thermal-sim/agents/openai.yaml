@@ -1,0 +1,4 @@
+interface:
+  display_name: "Thermal Simulation"
+  short_description: "Run independent solid thermal FEM and review CAD feedback"
+  default_prompt: "Use $thermal-sim to simulate this STEP model and connect the verified thermal results to design improvements."

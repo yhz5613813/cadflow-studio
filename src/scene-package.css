@@ -1,0 +1,23 @@
+.scene-inspector { color: #ccc; }
+.scene-inspector h3 { font-size: 12px; font-weight: 600; margin: 12px 0 8px; }
+.scene-evidence { display: grid; gap: 6px; padding-bottom: 12px; border-bottom: 1px solid #3c3c3c; font-size: 12px; }
+.scene-evidence span, .scene-note { color: #9d9d9d; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.scene-inspector code { display: block; font-size: 10px; overflow-wrap: anywhere; margin: 5px 0; }
+.scene-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.scene-columns section { min-width: 0; }
+.scene-hierarchy, .scene-feature-list { max-height: 210px; overflow: auto; }
+.scene-hierarchy summary { font-size: 12px; cursor: pointer; padding: 6px 0; overflow-wrap: anywhere; }
+.scene-children { padding-left: 12px; border-left: 1px solid #3c3c3c; margin-left: 3px; }
+.scene-node-button, .scene-feature-list > button { width: 100%; display: flex; flex-direction: column; gap: 3px; text-align: left; background: none; color: #ccc; border: 0; border-radius: 3px; padding: 7px; cursor: pointer; font-size: 12px; overflow-wrap: anywhere; }
+.scene-node-button:hover, .scene-feature-list > button:hover { background: #2a2d2e; }
+.scene-node-button.active, .scene-feature-list > button.active { background: #094771; color: #fff; }
+.scene-node-button:disabled { opacity: .6; cursor: default; }
+.scene-inspector small { color: #9d9d9d; font-size: 10px; font-weight: 400; }
+.scene-inspector input:not([type=checkbox]), .scene-inspector select { background: #252526; border: 1px solid #3c3c3c; color: #ccc; padding: 6px; border-radius: 3px; width: 100%; min-width: 0; }
+.scene-filter { display: flex; align-items: center; gap: 5px; font-size: 10px; margin: 7px 0; }
+.scene-feature-detail, .scene-source { border-top: 1px solid #3c3c3c; margin-top: 12px; padding-top: 3px; }
+.scene-inputs, .scene-span-buttons { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 8px 0; font-size: 11px; }
+.scene-feature-detail pre { max-height: 160px; overflow: auto; background: #1e1e1e; padding: 8px; font-size: 11px; }
+.scene-inspector summary { cursor: pointer; font-size: 11px; }
+.scene-source-editor { height: 260px; border: 1px solid #3c3c3c; border-radius: 3px; overflow: hidden; }
+@media(max-width: 480px) { .scene-columns { grid-template-columns: 1fr; } }

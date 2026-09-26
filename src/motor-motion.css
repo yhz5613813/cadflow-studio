@@ -1,0 +1,8 @@
+.motor-cinema{position:fixed!important;inset:0!important;z-index:85!important;width:100vw!important;height:100dvh!important;background:#1e1e1e}
+.motor-transport{position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:5px;padding:5px 8px;background:#252526ed;border:1px solid #454545;border-radius:6px;max-width:calc(100% - 24px)}
+.motor-transport input{width:145px;min-width:40px;height:4px;padding:0;accent-color:#4fc1ff;flex:1}
+.motor-transport .icon-button{width:28px;min-width:28px;color:#cccccc}
+.motor-transport .motor-recording{color:#e58c78}
+.motor-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.motor-record-error{position:absolute;left:14px;top:60px;right:14px;padding:8px 12px;background:#252526;color:#f48771;border:1px solid #555;border-radius:5px;font-size:12px}
+.motor-cinema .axis-widget{display:none}

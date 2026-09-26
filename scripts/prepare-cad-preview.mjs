@@ -1,0 +1,11 @@
+import { promises as fs } from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(import.meta.url);
+const source = path.dirname(require.resolve('occt-import-js'));
+const target = path.join(root, 'public', 'vendor', 'occt');
+await fs.mkdir(target, { recursive: true });
+for (const name of ['occt-import-js.js', 'occt-import-js.wasm', 'license.occt-import-js.txt', 'license.occt.txt']) await fs.copyFile(path.join(source, name), path.join(target, name));
+console.log('STEP preview runtime prepared (occt-import-js 0.0.23)');

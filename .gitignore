@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.studio/
+.env
+*.log
+test-results/

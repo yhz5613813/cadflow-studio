@@ -1,0 +1,50 @@
+{
+  "name": "cadflow-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "tsx server/index.ts --dev",
+    "build": "tsc --noEmit && vite build",
+    "start": "tsx server/index.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "test:integration": "tsx --test tests/pi.integration.test.ts",
+    "plugin:install": "tsx scripts/install-plugin.ts",
+    "preview:prepare": "node scripts/prepare-cad-preview.mjs",
+    "prebuild": "npm run preview:prepare",
+    "predev": "npm run preview:prepare"
+  },
+  "dependencies": {
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/state": "6.7.4",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "@earendil-works/pi-ai": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "ajv": "8.20.0",
+    "codemirror": "^6.0.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "fflate": "0.8.3",
+    "lucide-react": "^0.468.0",
+    "multer": "^2.0.2",
+    "occt-import-js": "0.0.23",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "0.178.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "0.178.1",
+    "@vitejs/plugin-react": "^5.0.4",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "7.3.6"
+  }
+}
