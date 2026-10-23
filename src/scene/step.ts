@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { cylinderObjectId, cylinderObjectName, decodeStepLabel } from './cylinder-selection';
 
 export type StepQuality = 'draft' | 'standard' | 'fine';
 export type StepFace = { first: number; last: number; color?: number[] | null };
@@ -59,12 +60,17 @@ export function stepScene(result: StepResult, sourceHash: string, quality: StepQ
     const used = new Set<number>();
     const visit = (node: StepNode, parent: THREE.Group, depth: number, groupPath: string) => {
       if (++nodes > 50000 || depth > 100 || !Array.isArray(node.meshes) || !Array.isArray(node.children)) throw new Error('STEP 装配层级无效或过深');
-      const group = new THREE.Group(); group.name = node.name || 'STEP'; parent.add(group);
-      const label = node.name ? [groupPath, node.name].filter(Boolean).join(' / ') : groupPath;
+      const nodeName = decodeStepLabel(node.name || '');
+      const group = new THREE.Group(); group.name = nodeName || 'STEP'; parent.add(group);
+      const label = nodeName ? [groupPath, nodeName].filter(Boolean).join(' / ') : groupPath;
       for (const index of node.meshes) {
         if (!Number.isSafeInteger(index) || !meshTemplates[index]) throw new Error('STEP 装配引用了不存在的零件');
         // OCCT's importer already bakes placements into vertex coordinates; do not apply them twice.
-        const mesh = meshTemplates[index].clone(); mesh.userData.assembly_group = node.meshes.length > 1 ? label : groupPath || node.name || 'STEP 部件';
+        const mesh = meshTemplates[index].clone();
+        // A named assembly occurrence owns its identity; OCCT may call every underlying mesh SOLID.
+        const objectId = node.meshes.length === 1 ? cylinderObjectId(nodeName) : undefined;
+        if (objectId) { mesh.userData.cylinderObjectId = objectId; mesh.name = cylinderObjectName(nodeName); }
+        mesh.userData.assembly_group = node.meshes.length > 1 ? label : groupPath || nodeName || 'STEP 部件';
         group.add(mesh); used.add(index);
       }
       for (const child of node.children) visit(child, group, depth + 1, label);

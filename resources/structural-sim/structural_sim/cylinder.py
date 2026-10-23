@@ -7,7 +7,9 @@ from pathlib import Path
 import gmsh
 import numpy as np
 
-def build_mesh(folder,size=25.,hole_phase_deg=0.):
+def build_mesh(folder,size=25.,hole_phase_deg=0.,geometry_model=None):
+    from .geometry_model import parameters,offset_hole_phase
+    model,by,r,skin,rm,z0,z1=parameters(offset_hole_phase(geometry_model,hole_phase_deg))
     folder=Path(folder);folder.mkdir(parents=True,exist_ok=True)
     gmsh.initialize([],readConfigFiles=False,interruptible=False)
     try:
@@ -15,44 +17,55 @@ def build_mesh(folder,size=25.,hole_phase_deg=0.):
         gmsh.option.setNumber('General.NumThreads',1)
         gmsh.option.setNumber('Mesh.RandomSeed',1)
         o=gmsh.model.occ
-        v=o.addCylinder(0,0,6,0,0,488,498.75)
+        v=o.addCylinder(0,0,z0,0,0,z1-z0,rm)
         o.synchronize()
         bounds=gmsh.model.getBoundary([(3,v)],oriented=False)
         outer=[s for d,s in bounds if gmsh.model.getType(d,s)=='Cylinder'][0]
         o.remove([(3,v)],recursive=False)
         o.remove([(2,s) for d,s in bounds if s!=outer],recursive=False)
-        sources=[(2,outer)]; groups=['skin']
-        for z,kind,ri in [(6,'bottom',450),(494,'top',450)]+[(12+476*k/6,'ring',485.5) for k in range(1,6)]:
-            a=o.addDisk(0,0,z,498.75,498.75); b=o.addDisk(0,0,z,ri,ri)
+        sources=[(2,outer)]; groups=[('skin','skin')]
+        sections={'skin':dict(kind='skin',thickness_mm=skin)}
+        for part in [p for p in model['components'] if p['kind'] in ('flange','ring')]:
+            kind=part['end'] if part['kind']=='flange' else 'ring'
+            z=(z0 if kind=='bottom' else z1) if kind in ('bottom','top') else part['z_mm']
+            ri=r-part['width_mm'] if part['kind']=='flange' else r-skin-part['height_mm']
+            a=o.addDisk(0,0,z,rm,rm); b=o.addDisk(0,0,z,ri,ri)
             cuts=[(2,b)]
             if kind in ('bottom','top'):
-                cuts += [(2,o.addDisk(485*math.cos(k*math.pi/9+math.radians(hole_phase_deg)),485*math.sin(k*math.pi/9+math.radians(hole_phase_deg)),z,7.5,7.5)) for k in range(18)]
+                count=part['hole_count'];radius=part['bolt_circle_mm']/2;hole=part['hole_diameter_mm']/2
+                phase=math.radians(part.get('phase_deg',0))
+                cuts += [(2,o.addDisk(radius*math.cos(k*math.tau/count+phase),radius*math.sin(k*math.tau/count+phase),z,hole,hole)) for k in range(count)]
             ann,_=o.cut([(2,a)],cuts)
-            sources.extend(ann);groups.extend([kind]*len(ann))
-        for k in range(12):
-            a=k*math.pi/6
-            coords=[(r*math.cos(a),r*math.sin(a),z) for r,z in [(485.5,6),(498.75,6),(498.75,494),(485.5,494)]]
+            sources.extend(ann);groups.extend([(kind,part['id'])]*len(ann))
+            sections[part['id']]=dict(kind=kind,thickness_mm=part['thickness_mm'] if part['kind']=='flange' else part['width_mm'])
+        for part in [p for p in model['components'] if p['kind']=='longitudinal']:
+            a=math.radians(part['angle_deg']);ri=r-skin-part['height_mm']
+            coords=[(rr*math.cos(a),rr*math.sin(a),z) for rr,z in [(ri,z0),(rm,z0),(rm,z1),(ri,z1)]]
             pts=[o.addPoint(*p) for p in coords]
             lines=[o.addLine(pts[j],pts[(j+1)%4]) for j in range(4)]
-            sources.append((2,o.addPlaneSurface([o.addCurveLoop(lines)])));groups.append('longitudinal')
+            sources.append((2,o.addPlaneSurface([o.addCurveLoop(lines)])));groups.append(('longitudinal',part['id']))
+            sections[part['id']]=dict(kind='longitudinal',thickness_mm=part['width_mm'])
         _,mapping=o.fragment(sources[:1],sources[1:])
         o.synchronize()
-        kinds={tag:kind for kind,parts in zip(groups,mapping) for d,tag in parts if d==2}
+        owners={}
+        for identity,parts in zip(groups,mapping):
+            for d,tag in parts:
+                if d!=2:continue
+                if tag in owners and owners[tag]!=identity:raise ValueError('Overlapping shell component midsurfaces')
+                owners[tag]=identity
         gmsh.option.setNumber('Mesh.MeshSizeMax',size)
         gmsh.option.setNumber('Mesh.MeshSizeMin',min(size/8,4.))
-        # Refine hole perimeters as well as nominal face size; otherwise the
-        # local peak mesh can remain identical through a global-size study.
         gmsh.option.setNumber('Mesh.MeshSizeFromCurvature',max(24,1280/size))
         gmsh.option.setNumber('Mesh.Algorithm',6)
         gmsh.option.setNumber('Mesh.RecombinationAlgorithm',1)
-        for tag in kinds:gmsh.model.mesh.setRecombine(2,tag)
+        for tag in owners:gmsh.model.mesh.setRecombine(2,tag)
         gmsh.model.mesh.generate(2)
         gmsh.option.setNumber('Mesh.SecondOrderIncomplete',1)
         gmsh.model.mesh.setOrder(2)
         tags,xyz,_=gmsh.model.mesh.getNodes();points=np.array(xyz).reshape(-1,3)
         lut={int(t):i for i,t in enumerate(tags)}
-        elems=[];ek=[];types=[]
-        for tag,kind in kinds.items():
+        elems=[];ek=[];types=[];component_ids=[]
+        for tag,(kind,component) in owners.items():
             ts,_,ns=gmsh.model.mesh.getElements(2,tag)
             for ty,flat in zip(ts,ns):
                 if ty not in (9,16):raise ValueError(('Unexpected shell type',ty))
@@ -62,8 +75,7 @@ def build_mesh(folder,size=25.,hole_phase_deg=0.):
                     p=points[ids];norm=np.cross(p[1]-p[0],p[2]-p[0]);c=p.mean(0)
                     target=np.array([c[0],c[1],0]) if kind=='skin' else (np.array([-c[1],c[0],0]) if kind=='longitudinal' else np.array([0,0,1]))
                     if norm@target<0:ids=[ids[j] for j in ([0,2,1,5,4,3] if n==6 else [0,3,2,1,7,6,5,4])]
-                    elems.append(ids);ek.append(kind);types.append('S6' if n==6 else 'S8R')
-        # Remove unused construction nodes and ensure one connected structure.
+                    elems.append(ids);ek.append(kind);types.append('S6' if n==6 else 'S8R');component_ids.append(component)
         used=np.unique(np.concatenate(elems));remap={int(n):i for i,n in enumerate(used)}
         points=points[used];elems=[[remap[n] for n in e] for e in elems]
         from scipy.sparse import coo_matrix
@@ -74,11 +86,14 @@ def build_mesh(folder,size=25.,hole_phase_deg=0.):
         A=coo_matrix((np.ones(2*len(aa)),(aa+bb,bb+aa)),shape=(len(points),len(points)))
         count,_=connected_components(A)
         if count!=1:raise ValueError(f'{count} disconnected shell components')
-        data=dict(points=points.tolist(),elements=elems,kinds=ek,types=types,size_mm=size,connected_components=count,curvature_points=max(24,1280/size),hole_phase_deg=hole_phase_deg,
-                  idealization='Skin midsurface R498.75; flange midsurfaces Z6/494; ribs extended to intersect midsurfaces; shared nodes at integral junctions; flange bolt holes explicit')
+        if set(component_ids)!=set(by):raise ValueError('A CAD component has no shell elements')
+        data=dict(points=points.tolist(),elements=elems,kinds=ek,types=types,component_ids=component_ids,sections=sections,geometry_model=model,
+                  size_mm=size,connected_components=count,curvature_points=max(24,1280/size),hole_phase_deg=hole_phase_deg,
+                  idealization=f'Skin midsurface R{rm:g}; flange midsurfaces Z{z0:g}/{z1:g}; each rib retains its identity and section thickness; ribs extended to intersect midsurfaces; shared nodes at integral junctions; flange bolt holes explicit')
         (folder/'shell-mesh.json').write_text(json.dumps(data),encoding='utf-8')
         return data
-    finally:gmsh.finalize()
+    finally:
+        gmsh.finalize()
 
 def shape_quad(q):
     r,s=q
@@ -102,7 +117,7 @@ def write_deck(folder,mesh,mode='static',force=2451662.5,pressure=.2,E=70000.,nu
     binding=mesh.get('semantic_bindings')
     if binding:
         from .semantic import validate_binding
-        validate_binding(binding)
+        validate_binding(binding,geometry_model=mesh.get('geometry_model'))
     fixed_kind=binding['bindings']['interface.fixed_support']['shell_set'] if binding else 'bottom'
     loaded_kind=binding['bindings']['interface.axial_load']['shell_set'] if binding else 'top'
     pressure_kind=binding['bindings']['interface.external_pressure']['shell_set'] if binding else 'skin'
@@ -122,14 +137,36 @@ def write_deck(folder,mesh,mode='static',force=2451662.5,pressure=.2,E=70000.,nu
     # DLOAD pressure uses the same signed normals and includes pressure stiffness.
     lines=['*HEADING','CadFlow Structural Sim: quadratic shell cylinder; mm N MPa','*NODE,NSET=NALL']
     lines += [f'{i+1},'+','.join(f'{x:.12g}' for x in v) for i,v in enumerate(p)]
-    for kind,t in sorted(set(zip(kinds,types))):
-        lines.append(f'*ELEMENT,TYPE={t},ELSET={kind}_{t}')
-        lines += [f'{i+1},'+','.join(str(n+1) for n in e) for i,e in enumerate(elements) if kinds[i]==kind and types[i]==t]
-    for kind in sorted(set(kinds)):
-        lines += [f'*ELSET,ELSET={kind}',','.join(f'{kind}_{t}' for t in sorted(set(types[i] for i,k in enumerate(kinds) if k==kind)))]
-    lines += ['*ELSET,ELSET=EALL',','.join(sorted(set(kinds))),'*MATERIAL,NAME=AL_ASSUMED','*ELASTIC',f'{E},{nu}']
-    for kind in sorted(set(kinds)):
-        lines += [f'*SHELL SECTION,ELSET={kind},MATERIAL=AL_ASSUMED',str(2.5 if kind=='skin' else 12 if kind in ('top','bottom') else 8)]
+    component_ids=mesh.get('component_ids')
+    sections=mesh.get('sections')
+    if component_ids is not None:
+        if len(component_ids)!=len(elements) or not sections or set(component_ids)!=set(sections):
+            raise ValueError('Shell component section mapping is incomplete')
+        # Use indices as CalculiX names; preserve semantic IDs in the audit JSON.
+        names={cid:f'COMP_{i+1:03}' for i,cid in enumerate(sorted(sections))}
+        for cid,t in sorted(set(zip(component_ids,types))):
+            name=names[cid]+'_'+t
+            lines.append(f'*ELEMENT,TYPE={t},ELSET={name}')
+            lines += [f'{i+1},'+','.join(str(n+1) for n in e) for i,e in enumerate(elements) if component_ids[i]==cid and types[i]==t]
+        for cid,name in names.items():
+            lines += [f'*ELSET,ELSET={name}',','.join(name+'_'+t for t in sorted(set(types[i] for i,c in enumerate(component_ids) if c==cid)))]
+        for kind in sorted(set(kinds)):
+            lines += [f'*ELSET,ELSET={kind}',','.join(names[cid] for cid in sorted(sections) if sections[cid]['kind']==kind)]
+        lines += ['*ELSET,ELSET=EALL',','.join(sorted(set(kinds))),'*MATERIAL,NAME=AL_ASSUMED','*ELASTIC',f'{E},{nu}']
+        for cid,name in names.items():
+            thickness=sections[cid]['thickness_mm']
+            if not isinstance(thickness,(int,float)) or not math.isfinite(thickness) or thickness<=0:raise ValueError('Invalid component shell thickness')
+            lines += [f'*SHELL SECTION,ELSET={name},MATERIAL=AL_ASSUMED',f'{thickness:g}']
+    else:
+        # Keep legacy saved meshes byte-for-byte compatible for reprocessing.
+        for kind,t in sorted(set(zip(kinds,types))):
+            lines.append(f'*ELEMENT,TYPE={t},ELSET={kind}_{t}')
+            lines += [f'{i+1},'+','.join(str(n+1) for n in e) for i,e in enumerate(elements) if kinds[i]==kind and types[i]==t]
+        for kind in sorted(set(kinds)):
+            lines += [f'*ELSET,ELSET={kind}',','.join(f'{kind}_{t}' for t in sorted(set(types[i] for i,k in enumerate(kinds) if k==kind)))]
+        lines += ['*ELSET,ELSET=EALL',','.join(sorted(set(kinds))),'*MATERIAL,NAME=AL_ASSUMED','*ELASTIC',f'{E},{nu}']
+        for kind in sorted(set(kinds)):
+            lines += [f'*SHELL SECTION,ELSET={kind},MATERIAL=AL_ASSUMED',str(2.5 if kind=='skin' else 12 if kind in ('top','bottom') else 8)]
     lines+=['*NSET,NSET=FIXED']+[','.join(str(n+1) for n in fixed[i:i+16]) for i in range(0,len(fixed),16)]
     lines += ['*BOUNDARY','FIXED,1,6','*STEP,NLGEOM,INC=300' if mode=='nonlinear' else '*STEP']
     lines += ['*BUCKLE,SOLVER=SPOOLES','6,1.e-8'] if mode=='buckling' else ['*STATIC,SOLVER=SPOOLES']
@@ -146,7 +183,7 @@ def write_deck(folder,mesh,mode='static',force=2451662.5,pressure=.2,E=70000.,nu
     lines += ['*END STEP']
     (folder/'analysis.inp').write_text('\n'.join(lines)+'\n',encoding='ascii')
     np.savez_compressed(folder/'loads.npz',force=F,fixed=fixed)
-    audit=dict(semantic_bindings=binding,axial_force_N=force,external_pressure_MPa=pressure,top_loaded_area_mm2=areas['top'],skin_area_mm2=areas['skin'],
+    audit=dict(E_MPa=E,nu=nu,semantic_bindings=binding,geometry_model=mesh.get('geometry_model'),component_sections=sections,axial_force_N=force,external_pressure_MPa=pressure,top_loaded_area_mm2=areas['top'],skin_area_mm2=areas['skin'],
                mapped_force_N=F.sum(0).tolist(),pressure_resultant_N=pressure_resultant.tolist(),mode=mode,axial_loading=axial_loading,buckling_reference_scale=reference_scale,nodes=len(p),elements=len(elements))
     (folder/'load-audit.json').write_text(json.dumps(audit,indent=2),encoding='utf-8')
     if abs(F[:,2].sum()+force)>max(force,1)*1e-8:raise ValueError('Axial load mapping mismatch')

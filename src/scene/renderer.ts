@@ -10,8 +10,8 @@ import { metricInput } from './metric-input';
 import { measureInWorker } from './measure';
 import { MotorMotion, type MotorState } from './motor-motion';
 
-export type MeshInfo = { id: string; name: string; triangles: number; visible: boolean; group?: string; faceCount?: number; units?: 'mm' };
-export type Selection = { meshId: string; name: string; triangle?: number; point?: number[]; bounds: number[]; triangles: number; cadFace?: CadFaceSelection; faceCount?: number; units?: 'mm'; sourceHash?: string; packageMesh?: PackageMesh; review?: Omit<ReviewAnchor, 'file'> };
+export type MeshInfo = { id: string; cylinderObjectId?: string; name: string; triangles: number; visible: boolean; group?: string; faceCount?: number; units?: 'mm' };
+export type Selection = { meshId: string; cylinderObjectId?: string; name: string; triangle?: number; point?: number[]; bounds: number[]; triangles: number; cadFace?: CadFaceSelection; faceCount?: number; units?: 'mm'; sourceHash?: string; packageMesh?: PackageMesh; review?: Omit<ReviewAnchor, 'file'> };
 export type ViewOptions = { edges: boolean; grid: boolean; ortho: boolean; section: number; explode: number; mode: 'component' | 'face' };
 export class CadRenderer {
   renderer: THREE.WebGLRenderer;
@@ -105,7 +105,7 @@ export class CadRenderer {
     const box = new THREE.Box3().setFromObject(mesh), size = box.getSize(new THREE.Vector3());
     const units = evidence?.units || (mesh.userData.packageMesh ? 'mm' : undefined);
     const review: Omit<ReviewAnchor, 'file'> | undefined = this.identity ? { ...this.identity, meshKey: mesh.userData.reviewKey, name: mesh.name, kind: cadFace ? 'step-face' : triangle !== undefined ? 'triangle' : 'component', faceIndex: cadFace?.index, triangleIndex: triangle, nodeId: mesh.userData.packageMesh?.nodeId, definitionId: mesh.userData.packageMesh?.definitionId, bounds: size.toArray(), units } : undefined;
-    this.onPick({ meshId: mesh.uuid, name: mesh.name, triangle, point: point?.toArray(), bounds: size.toArray(), triangles: (mesh.geometry.index?.count ?? mesh.geometry.attributes.position?.count ?? 0) / 3, cadFace, faceCount: evidence?.faces.length, units, sourceHash: evidence?.sourceHash, packageMesh: mesh.userData.packageMesh, review });
+    this.onPick({ meshId: mesh.uuid, cylinderObjectId: mesh.userData.cylinderObjectId, name: mesh.name, triangle, point: point?.toArray(), bounds: size.toArray(), triangles: (mesh.geometry.index?.count ?? mesh.geometry.attributes.position?.count ?? 0) / 3, cadFace, faceCount: evidence?.faces.length, units, sourceHash: evidence?.sourceHash, packageMesh: mesh.userData.packageMesh, review });
   }
   locateReview(anchor: ReviewAnchor) {
     try { const { mesh, triangle } = resolveReview(this.meshes, this.identity, anchor); mesh.visible = true; this.select(mesh.uuid, triangle); return { meshId: mesh.uuid }; }
@@ -150,7 +150,7 @@ export class CadRenderer {
       let parent: THREE.Object3D | null = mesh; let group: string | undefined;
       while (parent && !group) { group = parent.userData.assembly_group; parent = parent.parent; }
       const evidence = mesh.userData.step as StepEvidence | undefined;
-      return { id: mesh.uuid, name: mesh.name, triangles: (mesh.geometry.index?.count ?? mesh.geometry.attributes.position?.count ?? 0) / 3, visible: mesh.visible, group, faceCount: evidence?.faces.length, units: evidence?.units };
+      return { id: mesh.uuid, cylinderObjectId: mesh.userData.cylinderObjectId, name: mesh.name, triangles: (mesh.geometry.index?.count ?? mesh.geometry.attributes.position?.count ?? 0) / 3, visible: mesh.visible, group, faceCount: evidence?.faces.length, units: evidence?.units };
     });
   }
   setOptions(options: ViewOptions) {

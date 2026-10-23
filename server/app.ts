@@ -1,4 +1,5 @@
 import { parametricRoutes } from './parametric.js';
+import { cylinderObjectsRoutes } from './cylinder-objects.js';
 import { structuralRoutes } from './structural.js';
 import express from 'express';
 import { Thermal } from './thermal.js';
@@ -41,6 +42,7 @@ export async function createApp(dataRoot: string) {
   });
   app.use(express.json({ limit: '8mb' }));
   const parametric=parametricRoutes(app,store,history);
+  const cylinderObjects=cylinderObjectsRoutes(app,store,history,{changed:id=>{events.emit(id,'artifacts_changed',{});events.emit(id,'history_changed',{});}});
   const structural=structuralRoutes(app,store);
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/projects/:id/measurements', async (req, res) => res.json(await measurements.read(req.params.id)));
@@ -254,5 +256,5 @@ export async function createApp(dataRoot: string) {
     const status = error.code === 'ENOENT' ? 404 : error.code === 'LIMIT_FILE_SIZE' ? 413 : error.status || 500;
     res.status(status).json({ error: error.code === 'LIMIT_FILE_SIZE' ? '文件不能超过 128 MB' : error.message || '请求失败' });
   });
-  return { parametric, structural, app, store, plugins, harness, events, history, builds, thermal };
+  return { parametric, cylinderObjects, structural, app, store, plugins, harness, events, history, builds, thermal };
 }

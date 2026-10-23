@@ -52,7 +52,7 @@ export function structuralRoutes(app:Express,store:Store,validateGeometry:typeof
       if(req.body.reprocess_only===true&&(!previous||!['succeeded','failed'].includes(previous.state)||req.body.mesh_study!==true))throw new HttpError(400,'重新整理需要一份已结束的网格验证记录');
       await fs.mkdir(folder,{recursive:true});
       const snapshot=path.join(folder,'source.step');await fs.writeFile(snapshot,bytes);
-      const request={semantic_bindings:null as any,reprocess_only:req.body.reprocess_only===true,diagnostics_fill_missing:req.body.diagnostics_fill_missing===true,resume_output:previous?.output,diagnostics:true,analysis:'cylinder_shell',geometry:snapshot,geometry_sha256:r.sourceHash,
+      const request={geometry_model:undefined as any,presentation_images:undefined as any,semantic_bindings:null as any,reprocess_only:req.body.reprocess_only===true,diagnostics_fill_missing:req.body.diagnostics_fill_missing===true,resume_output:previous?.output,diagnostics:true,analysis:'cylinder_shell',geometry:snapshot,geometry_sha256:r.sourceHash,
         mesh_size_mm:req.body.mesh_size_mm??24,axial_force_N:req.body.axial_force_N??2451662.5,
         external_pressure_MPa:req.body.external_pressure_MPa??.2,E_MPa:req.body.E_MPa??70000,
         nu:req.body.nu??.33,mesh_study:req.body.mesh_study===true,mesh_levels_mm:req.body.mesh_levels_mm??[32,24,18],buckling:req.body.buckling!==false,report_python:runtime.reportPython};
@@ -73,6 +73,8 @@ export function structuralRoutes(app:Express,store:Store,validateGeometry:typeof
           r.state='running';await jsonWrite(path.join(folder,'run.json'),r);
           r.log+='正在独立复核 CAD 实体与语义边界\n';
           request.semantic_bindings=await validateGeometry(store.root,src,folder,r.sourceHash,abort.signal,t=>{r.log=(r.log+t).slice(-64000);});
+          request.geometry_model=request.semantic_bindings?.geometry_model;
+          request.presentation_images=request.semantic_bindings?.presentation_images;
           abort.signal.throwIfAborted();
           await jsonWrite(path.join(folder,'request.json'),request);
           const result=await runProcess(runtime.python,['-u','-m','structural_sim','run',path.join(folder,'request.json'),'--output',r.output!,'--solver',runtime.solver],

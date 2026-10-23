@@ -3,6 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 import numpy as np
 from strength.fem import stress_invariants
+from .geometry_model import parameters
 
 def read_frd(path,wanted=None,max_time=float('inf'),last_only=(),time_tolerance=1.e-7):
     fields={};active=None;rows={};frame_time=0.
@@ -78,11 +79,17 @@ def parse_static(folder):
         uu=np.array([frame[i+1][:3] for i in range(n)])
         h['maximum_displacement_mm']=float(np.linalg.norm(uu,axis=1).max())
     centers=np.array([p[e].mean(0) for e in mesh['elements']])
-    bulk=(kinds=='skin')&(centers[:,2]>50)&(centers[:,2]<450)
-    # Exclude 20 mm around ring/longitudinal junctions from a defined bulk-skin metric.
-    for z in [12+476*k/6 for k in range(1,6)]:bulk &= np.abs(centers[:,2]-z)>20
-    angle=np.arctan2(centers[:,1],centers[:,0]);nearest=(angle+np.pi/12)%(np.pi/6)-np.pi/12
-    bulk &= np.abs(np.sin(nearest))*np.linalg.norm(centers[:,:2],axis=1)>20
+    model,by,radius,skin,rm,z0,z1=parameters(mesh.get('geometry_model'))
+    lower=.1*model['height_mm'];upper=.9*model['height_mm']
+    bulk=(kinds=='skin')&(centers[:,2]>lower)&(centers[:,2]<upper)
+    # The same 20 mm exclusion distance follows the actual edited rib locations.
+    for part in model['components']:
+        if part['kind']=='ring':bulk &= np.abs(centers[:,2]-part['z_mm'])>20
+    angle=np.arctan2(centers[:,1],centers[:,0])
+    for part in model['components']:
+        if part['kind']=='longitudinal':
+            delta=(angle-np.deg2rad(part['angle_deg'])+np.pi)%(2*np.pi)-np.pi
+            bulk &= 2*np.linalg.norm(centers[:,:2],axis=1)*np.sin(np.abs(delta)/2)>20
     peak=int(ids[int(vm.argmax())]);topnodes=np.unique(np.concatenate([e for e,k in zip(mesh['elements'],mesh['kinds']) if k=='top']))
     summary=dict(mode='geometric_nonlinear_shell' if audit.get('mode')=='nonlinear' else 'linear_static_shell',nodes=n,elements=len(evm),mesh_size_mm=mesh['size_mm'],
         maximum_von_mises_MPa=float(vm.max()),maximum_displacement_mm=float(mag.max()),
@@ -95,9 +102,21 @@ def parse_static(folder):
         bulk_skin_max_mises_MPa=float(evm[bulk].max()) if bulk.any() else None,
         top_mean_axial_displacement_mm=float(u[topnodes,2].mean()),
         components={k:dict(maximum_von_mises_MPa=float(evm[kinds==k].max())) for k in sorted(set(kinds))},
-        load=audit,material=dict(E_MPa=70000,nu=.33,yield_strength=None),
+        load=audit,material=dict(E_MPa=audit.get('E_MPa',70000),nu=audit.get('nu',.33),yield_strength=None),
         stress_basis='Raw integration-point Cauchy von Mises; last converged increment; per-element through-thickness maximum for plots',
-        idealization=mesh['idealization'])
+        idealization=mesh['idealization'],geometry_model=model,
+        bulk_skin_region=dict(z_min_mm=lower,z_max_mm=upper,junction_exclusion_mm=20))
+    if mesh.get('component_ids'):
+        component_ids=np.asarray(mesh['component_ids'])
+        summary['peak_component_id']=str(component_ids[peak])
+        summary['component_results']={}
+        for cid in sorted(set(component_ids)):
+            selected=np.flatnonzero(component_ids==cid)
+            nodes=np.unique(np.concatenate([mesh['elements'][i] for i in selected]))
+            summary['component_results'][cid]=dict(name=by[cid].get('name',cid),kind=by[cid]['kind'],
+                maximum_von_mises_MPa=float(evm[selected].max()),maximum_displacement_mm=float(mag[nodes].max()),
+                elements=len(selected),parameters=by[cid])
+
     np.savez_compressed(folder/'fields.npz',displacements=u,element_mises=evm,integration_stresses=stress,integration_elements=ids)
     (folder/'summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
     return summary
@@ -129,6 +148,8 @@ def plot_results(folder):
         fig.text(.05,.035,f'Max = {norm.vmax:.6g} {unit} | geometry scale: {scale:g}x displacement | elastic assumed material')
         fig.savefig(folder/(name+'.png'));plt.close(fig)
     display=dict(points=p.tolist(),triangles=faces.tolist(),displacements=u.tolist(),element_mises=vm[owner].tolist(),maximum_mises=float(vm.max()),maximum_displacement=float(mag.max()))
+    display['geometry_model']=mesh.get('geometry_model')
+    if mesh.get('component_ids'):display['component_ids']=[mesh['component_ids'][i] for i in owner]
     (folder/'display.json').write_text(json.dumps(display),encoding='utf-8')
     # A local view keeps the small flange hotspot readable on a 1 m structure.
     from matplotlib.collections import PolyCollection
@@ -139,7 +160,9 @@ def plot_results(folder):
         xy=np.column_stack([tangent,radial]);keep=kinds[owner]=='top'
         fig,ax=plt.subplots(figsize=(8.6,4.2),layout='constrained');norm=Normalize(0,float(vm.max()))
         collection=PolyCollection(xy[faces[keep]],array=vm[owner[keep]],cmap='turbo',norm=norm,edgecolors='#555555',linewidths=.25)
-        ax.add_collection(collection);ax.set(xlim=(-30,30),ylim=(455,503),xlabel='Local tangential coordinate (mm)',ylabel='Local radial coordinate (mm)',title=f'Upper flange detail | load multiplier {s.get("load_factor",1):.5f}')
+        model,by,radius,skin,rm,z0,z1=parameters(mesh.get('geometry_model'))
+        width=by['frame.top']['width_mm'];span=max(30,width*.65)
+        ax.add_collection(collection);ax.set(xlim=(-span,span),ylim=(radius-width-3,radius+3),xlabel='Local tangential coordinate (mm)',ylabel='Local radial coordinate (mm)',title=f'Upper flange detail | load multiplier {s.get("load_factor",1):.5f}')
         ax.set_aspect('equal');fig.colorbar(collection,ax=ax,label='Mises (MPa)');fig.savefig(folder/'top-detail.png',dpi=160);plt.close(fig)
 
 def parse_buckling(folder):

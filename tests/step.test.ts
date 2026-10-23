@@ -60,6 +60,7 @@ test('real OCCT WASM imports a STEP cube and preserves six BREP faces with full 
     const [mesh] = meshes(scene), evidence = mesh.userData.step as StepEvidence;
     assert.equal(meshes(scene).length, 1); assert.equal(evidence.faces.length, 6); assert.equal(evidence.units, 'mm'); assert.equal(evidence.sourceHash, hash);
     assert.equal(mesh.geometry.index!.count, 36);
+    assert.equal(mesh.name, result.meshes[0].name, 'ordinary STEP names stay stable for existing review anchors');
     for (const [index, face] of evidence.faces.entries()) {
       const selection = faceForTriangle(evidence, face.first)!;
       assert.equal(selection.index, index); assert.equal(selection.lastTriangle - selection.firstTriangle + 1, 2);
@@ -120,4 +121,22 @@ test('explode separates baked STEP geometry in transformed groups and resets exa
   explodeMeshes([a,b],original,new THREE.Vector3(),0);
   assert.deepEqual(a.position.toArray(),[0,0,0]); assert.deepEqual(b.position.toArray(),[0,0,0]);
   [a,b].forEach((m,i)=>assert.deepEqual(Array.from(m.geometry.attributes.position.array),positions[i])); dispose(group);
+});
+
+test('named assembly occurrences retain stable cylinder identities when every geometry mesh is SOLID', async () => {
+  const { result, hash, scene: original } = await load('simple-basic-cube/cube.stp'); dispose(original);
+  const named = structuredClone(result);
+  named.meshes[0].name = 'SOLID';
+  const label = Buffer.from('longitudinal.003 | 纵筋 03', 'utf8').toString('latin1');
+  named.root.children[0].name = label;
+  const first = stepScene(named, hash), rebuilt = stepScene(named, hash);
+  try {
+    const a = meshes(first)[0], b = meshes(rebuilt)[0];
+    assert.equal(a.name, '纵筋 03');
+    assert.equal(a.userData.cylinderObjectId, 'longitudinal.003');
+    assert.equal(b.userData.cylinderObjectId, 'longitudinal.003');
+    assert.notEqual(a.uuid, b.uuid, 'rebuilding can replace the render UUID without changing object identity');
+    assert.equal(a.userData.step.sourceHash, hash);
+    assert.equal(a.userData.step.faces.length, 6);
+  } finally { dispose(first); dispose(rebuilt); }
 });

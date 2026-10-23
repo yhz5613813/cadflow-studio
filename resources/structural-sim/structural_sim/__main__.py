@@ -4,6 +4,22 @@ from pathlib import Path
 def write(path,value):
     path=Path(path);tmp=path.with_suffix(path.suffix+'.tmp');tmp.write_text(json.dumps(value,ensure_ascii=False,indent=2),encoding='utf-8');tmp.replace(path)
 
+def presentation_sources(req,sha):
+    presentation=req.get('presentation_images')
+    if not presentation:return None
+    if not isinstance(presentation,dict) or presentation.get('source_sha256')!=sha:
+        raise ValueError('CAD presentation image source differs from solved geometry')
+    sources={}
+    for key,name in [('full','cad-full.png'),('cutaway','cad-cutaway.png')]:
+        value=presentation.get(key)
+        if not isinstance(value,str):raise ValueError('Missing or invalid CAD presentation image: '+key)
+        source=Path(value)
+        if not source.is_file():raise ValueError('Missing or invalid CAD presentation image: '+key)
+        with source.open('rb') as image:
+            if image.read(8)!=b'\x89PNG\r\n\x1a\n':raise ValueError('Missing or invalid CAD presentation image: '+key)
+        sources[name]=source
+    return sources
+
 def run(request,output,solver):
     req=json.loads(Path(request).read_text(encoding='utf-8-sig'));out=Path(output).resolve()
     out.mkdir(parents=True,exist_ok=False)
@@ -16,17 +32,20 @@ def run(request,output,solver):
         if sha!=req['geometry_sha256']:raise ValueError('Source geometry hash mismatch')
         shutil.copy2(source,out/('source'+source.suffix));write(out/'request.json',req)
         if req['analysis']=='cylinder_shell':
-            # This shell generator is explicitly bound to the verified CAD fixture.
+            # Accept the original fixture or an independently verified editable CAD model.
             baseline=json.loads((Path(__file__).parent/'cylinder-profile.json').read_text(encoding='utf-8-sig'))
+            if b'DATA;' not in source.read_bytes():raise ValueError('Cylinder shell input must be a STEP file')
             datahash=hashlib.sha256(source.read_bytes().split(b'DATA;',1)[1]).hexdigest()
             binding=req.get('semantic_bindings')
             if binding:
                 from .semantic import validate_binding
-                validate_binding(binding,sha,baseline['step_data_sha256'])
+                validate_binding(binding,sha,baseline['step_data_sha256'],req.get('geometry_model'))
+            elif req.get('geometry_model') is not None:raise ValueError('Edited geometry requires independently validated semantic boundaries')
             elif datahash!=baseline['step_data_sha256']:raise ValueError('Shell profile does not match this CAD. Rebuild/validate the shell idealization for changed geometry.')
             size=float(req.get('mesh_size_mm',24));force=float(req.get('axial_force_N',2451662.5));pressure=float(req.get('external_pressure_MPa',.2));E=float(req.get('E_MPa',70000));nu=float(req.get('nu',.33))
             import math
             if not all(math.isfinite(x) for x in [size,force,pressure,E,nu]) or not 12<=size<=60 or force<=0 or pressure<0 or E<=0 or not 0<nu<.49:raise ValueError('Invalid shell case parameters')
+            presentation_sources(req,sha)
             from .cylinder import build_mesh,write_deck
             from .results import parse_static,plot_results,parse_buckling
             from strength.solver import run_ccx
@@ -35,7 +54,7 @@ def run(request,output,solver):
                 summary=run_study(out,req,status,run_ccx)
                 finish(out,req,sha,summary,solver,started,status)
                 return
-            static=out/'static';status('meshing','生成带孔二阶壳网格');mesh=build_mesh(static,size)
+            static=out/'static';status('meshing','生成带孔二阶壳网格');mesh=build_mesh(static,size,geometry_model=req.get('geometry_model'))
             if binding:mesh['semantic_bindings']=binding;write(static/'shell-mesh.json',mesh)
             write_deck(static,mesh,force=force,pressure=pressure,E=E,nu=nu)
             status('solving','CalculiX 静力求解');run_ccx(static,timeout_s=1800)
@@ -48,7 +67,7 @@ def run(request,output,solver):
                 write_deck(b,mesh,'buckling',force,pressure,E,nu);run_ccx(b,timeout_s=1800);summary['buckling']=parse_buckling(b)
             summary['assessment']='本次为假设弹性材料的参考场；未提供屈服曲线，不作强度合格判定。'
             if summary['maximum_displacement_mm']>5 or summary['maximum_von_mises_MPa']/E>.01:
-                summary['assessment']='线性参考场已显示明显变形或高弹性应变；不能作为250吨下的实际应力和变形预测，也不能据此判定安全。需结合屈曲结果，并补充材料曲线与几何非线性分析。'
+                summary['assessment']=f'线性参考场已显示明显变形或高弹性应变；不能作为 {force/9806.65:g} 公吨力与 {pressure:g} MPa 外压下的实际应力和变形预测，也不能据此判定安全。需结合屈曲结果，并补充材料曲线与几何非线性分析。'
             write(out/'summary.json',summary)
         elif req['analysis']=='solid_static':
             from strength.geometry import inspect_model
@@ -63,13 +82,19 @@ def run(request,output,solver):
         status('failed',str(e));raise
 
 def finish(out,req,sha,summary,solver,started,status):
-        # The parametric adapter admits only CAD equivalent to the confirmed
-        # reference. Its existing Blender images therefore remain applicable.
-        if (req.get('semantic_bindings') or {}).get('equivalence',{}).get('approved'):
+        presentation=presentation_sources(req,sha)
+        binding=req.get('semantic_bindings') or {}
+        (out/'static').mkdir(exist_ok=True)
+        if presentation:
+            for name,source in presentation.items():shutil.copy2(source,out/'static'/name)
+        elif binding.get('schema_version')==1 and binding.get('equivalence',{}).get('approved'):
             images=Path(__file__).parent/'presentation'
-            (out/'static').mkdir(exist_ok=True)
             for name in ('cad-full.png','cad-cutaway.png'):
                 if (images/name).is_file():shutil.copy2(images/name,out/'static'/name)
+        else:
+            # A changed model must never inherit the original case's render.
+            for name in ('cad-full.png','cad-cutaway.png'):
+                (out/'static'/name).unlink(missing_ok=True)
         if req.get('report_python') and req['analysis']=='cylinder_shell':
             status('reporting','生成 Word 报告')
             subprocess.run([req['report_python'],str(Path(__file__).with_name('report_docx.py')),str(out)],check=True,timeout=120,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))

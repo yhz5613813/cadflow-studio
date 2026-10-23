@@ -54,7 +54,17 @@ $solverPython = 'D:/castudio-env/structural/Scripts/python.exe'
 
 默认网格研究运行多个网格等级及载荷诊断，可能耗时较长。先完成线性分析，再运行几何非线性与网格研究。不同载荷完成度的结果不能直接当作收敛比较。
 
-Blender 渲染图是已校验参考圆柱的展示资源，只有参数化 CAD 通过实体等价检查后才进入该路径的报告。它们不是求解云图。独立求解输入、位移与应力来自实际分析。
+圆柱对象可在模型工作区直接编辑。`parametric-runtime.json` 中的 Python 同时负责对象参数校验、带名称的 STEP 装配预览和融合计算实体。无需打开 notebook 即可完成对象工作流。
+
+如需在报告中加入当前模型的 Blender 渲染，在应用数据目录创建 `cylinder-runtime.json`：
+
+~~~json
+{
+  "blender": "D:/your-tools/blender/blender.exe"
+}
+~~~
+
+对象构建会用 Blender Cycles 渲染完整视图和剖切视图，并将图片与源 CAD 的哈希绑定。仿真启动时再次检查并冻结这些图片；没有配置 Blender 时仍可构建和分析，但变更后的报告不复用旧模型图片。Blender 展示图与实际求解云图分别生成。
 
 ## 3. 普通源码构建和热分析
 
@@ -73,6 +83,7 @@ Push-Location resources/structural-sim
 & $solverPython -m pytest tests -q
 Pop-Location
 & $cadPython resources/parametric/tests/run_topology.py
+& $cadPython resources/parametric/tests/test_objects_io.py
 ~~~
 
 工作台模型服务测试使用本地协议夹具，不需要真实账号，也不表示已验证线上模型权限。Python 回归检查几何输入、语义边界、非线性帧和恢复逻辑；不替代完整 CalculiX 算例求解。
