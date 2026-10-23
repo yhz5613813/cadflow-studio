@@ -1,0 +1,8 @@
+SimpleCADAPI 2.2.6.post2
+https://github.com/PhySpace/SimpleCADAPI
+Commit 9e749ed706aa3e40cbf78b2dcfff5717737a0c2f
+Apache-2.0; full license and source retained in ../simplecadapi.
+The editor and runtime are embedded as a managed CAStudio module.
+CAStudio additions: worker lifecycle, project routes, cylinder notebook, semantic boundary and exact CAD equivalence bridge, shell solver integration.
+
+CAStudio patches: short per-user cache paths on Windows; editor save/publication handshake; core.clone_semantic_shape_view hash shortlist retaining exact topology predicate and wire-equivalence checks.

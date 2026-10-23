@@ -1,0 +1,6 @@
+cadquery-ocp==7.9.3.1.1
+cadquery-ocp-proxy==7.9.3.1.1
+marimo==0.25.2
+starlette==1.9.0
+uvicorn==0.54.0
+websockets==17.3

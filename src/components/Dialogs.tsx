@@ -1,10 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Check, Download, ExternalLink, LoaderCircle, Package, PlugZap, Power, ShieldCheck, Trash2, X } from 'lucide-react';
 import type { Plugin, Status } from '../../shared/types';
 import { api } from '../api';
 import { ChatGPTLogin } from './ChatGPTLogin';
 export function Dialog({ title, subtitle, close, children }: { title: string; subtitle?: string; close: () => void; children: React.ReactNode }) {
-  return <div className="modal-scrim" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}><section className="modal" role="dialog" aria-modal="true" aria-label={title}><header><div><h2>{title}</h2><p>{subtitle}</p></div><button className="icon-button" aria-label="关闭" onClick={close}><X size={20}/></button></header>{children}</section></div>;
+  const root = useRef<HTMLElement>(null), closeRef = useRef(close); closeRef.current = close;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const el = root.current;
+    const focusables = () => Array.from(el?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),summary,[tabindex="0"]') || []).filter(node => node.getClientRects().length > 0);
+    (el?.querySelector<HTMLElement>('[autofocus]') || focusables()[0] || el)?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); }
+      if (event.key === 'Tab') { const items = focusables(); const first = items[0], last = items[items.length - 1]; if (!first) { event.preventDefault(); el?.focus(); } else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } }
+    };
+    el?.addEventListener('keydown', keydown);
+    return () => { el?.removeEventListener('keydown', keydown); if(previous?.isConnected)previous.focus(); };
+  }, []);
+  return <div className="modal-scrim" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}><section ref={root} tabIndex={-1} className="modal" role="dialog" aria-modal="true" aria-label={title}><header><div><h2>{title}</h2><p>{subtitle}</p></div><button className="icon-button" aria-label="关闭" onClick={close}><X size={20}/></button></header>{children}</section></div>;
 }
 export function PluginDialog({ plugins, refresh, close }: { plugins: Plugin[]; refresh: () => Promise<void>; close: () => void }) {
   const [source, setSource] = useState(''), [busy, setBusy] = useState(''), [error, setError] = useState('');

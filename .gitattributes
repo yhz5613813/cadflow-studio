@@ -1,0 +1,4 @@
+# Preserve exact CAD bytes used by geometry fingerprint validation.
+*.step -text -diff
+*.stp -text -diff
+*.brep -text -diff

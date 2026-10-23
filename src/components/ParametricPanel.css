@@ -1,0 +1,12 @@
+.modal:has(.parametric-panel){width:min(1600px,98vw);max-width:98vw;padding:18px;}
+.parametric-panel{width:100%;max-height:86vh;overflow:auto;}
+.parametric-toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+.parametric-toolbar span,.parametric-panel>p{color:#9ca9ba;font-size:12px;}
+.parametric-toolbar button{padding:7px 12px;border:1px solid #44516a;border-radius:5px;background:#26354b;color:#e8eef7;cursor:pointer;}
+.parametric-toolbar button:disabled{opacity:.45;cursor:default;}
+.parametric-frame{width:100%;height:66vh;min-height:450px;border:1px solid #40516a;border-radius:6px;background:#11151c;}
+.parametric-validation{padding:10px;margin:10px 0;background:#1b2534;border-radius:6px;font-size:12px;}
+.parametric-validation table{width:100%;text-align:left;border-collapse:collapse;}
+.parametric-validation td,.parametric-validation th{padding:5px;border-bottom:1px solid #364259;}
+.parametric-panel pre{white-space:pre-wrap;max-height:170px;overflow:auto;}
+.parametric-empty{padding:70px;text-align:center;color:#a8b4c6;}

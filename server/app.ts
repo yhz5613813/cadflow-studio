@@ -1,3 +1,5 @@
+import { parametricRoutes } from './parametric.js';
+import { structuralRoutes } from './structural.js';
 import express from 'express';
 import { Thermal } from './thermal.js';
 import multer from 'multer';
@@ -38,6 +40,8 @@ export async function createApp(dataRoot: string) {
     res.setHeader('Cache-Control', 'no-store'); next();
   });
   app.use(express.json({ limit: '8mb' }));
+  const parametric=parametricRoutes(app,store,history);
+  const structural=structuralRoutes(app,store);
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/projects/:id/measurements', async (req, res) => res.json(await measurements.read(req.params.id)));
   app.post('/api/projects/:id/measurements', async (req, res) => {
@@ -250,5 +254,5 @@ export async function createApp(dataRoot: string) {
     const status = error.code === 'ENOENT' ? 404 : error.code === 'LIMIT_FILE_SIZE' ? 413 : error.status || 500;
     res.status(status).json({ error: error.code === 'LIMIT_FILE_SIZE' ? '文件不能超过 128 MB' : error.message || '请求失败' });
   });
-  return { app, store, plugins, harness, events, history, builds, thermal };
+  return { parametric, structural, app, store, plugins, harness, events, history, builds, thermal };
 }

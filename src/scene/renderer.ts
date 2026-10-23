@@ -40,7 +40,7 @@ export class CadRenderer {
   private options: ViewOptions = { edges: true, grid: true, ortho: false, section: 100, explode: 0, mode: 'component' };
   constructor(private host: HTMLElement, private onPick: (s: Selection | null) => void, private onMotor: (state: MotorState | null) => void = () => {}) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); this.renderer.setClearColor('#1e1e1e');
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); this.renderer.setClearColor('#f1f2ef');
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping; this.renderer.toneMappingExposure = 1.05;
     this.renderer.localClippingEnabled = true; this.renderer.shadowMap.enabled = true;
     this.renderer.domElement.setAttribute('aria-label', '三维模型视口'); host.append(this.renderer.domElement);
@@ -55,7 +55,7 @@ export class CadRenderer {
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x65778b, 1.3));
     const key = new THREE.DirectionalLight(0xffffff, 2); key.position.set(70, -100, 180); this.scene.add(key);
     const fill = new THREE.DirectionalLight(0xc9d7f0, 1); fill.position.set(-100, 40, 100); this.scene.add(fill);
-    this.grid = new THREE.GridHelper(300, 30, '#606060', '#404040'); this.grid.rotation.x = Math.PI / 2; this.grid.position.z = -2;
+    this.grid = new THREE.GridHelper(300, 30, '#c9cec3', '#dfe3d9'); this.grid.rotation.x = Math.PI / 2; this.grid.position.z = -2;
     (this.grid.material as THREE.Material).transparent = true; (this.grid.material as THREE.Material).opacity = 0.45;
     this.scene.add(this.grid, this.model, this.highlight);
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(host); this.resize();
@@ -100,7 +100,7 @@ export class CadRenderer {
       this.highlight.add(selected);
     } else {
       const box = new THREE.Box3().setFromObject(mesh);
-      const helper = new THREE.Box3Helper(box, new THREE.Color('#4fc1ff')); this.highlight.add(helper);
+      const helper = new THREE.Box3Helper(box, new THREE.Color('#719b97')); this.highlight.add(helper);
     }
     const box = new THREE.Box3().setFromObject(mesh), size = box.getSize(new THREE.Vector3());
     const units = evidence?.units || (mesh.userData.packageMesh ? 'mm' : undefined);
@@ -223,7 +223,7 @@ export class CadRenderer {
   private disposeModel() {
     if(this.recorder?.state==='recording'){this.recordCancelled=true;this.recorder.stop();}
     this.motor?.dispose();this.motor=undefined;this.onMotor(null);
-    this.motorLights.forEach((intensity,light)=>{light.intensity=intensity;});this.motorLights.clear();this.renderer.toneMappingExposure=1.05;this.scene.environmentIntensity=1;this.renderer.setClearColor('#1e1e1e');
+    this.motorLights.forEach((intensity,light)=>{light.intensity=intensity;});this.motorLights.clear();this.renderer.toneMappingExposure=1.05;this.scene.environmentIntensity=1;this.renderer.setClearColor('#f1f2ef');
     this.clearHighlight();
     this.model.traverse(o => { if (o instanceof THREE.Mesh || o instanceof THREE.LineSegments) { o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose()); } });
     this.model.clear(); this.meshes = []; this.edges = []; this.originals.clear(); this.measurementFrames.clear(); this.identity = undefined;

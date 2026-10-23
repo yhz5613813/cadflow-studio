@@ -1,0 +1,23 @@
+{
+  "parameters": {
+    "outer_diameter_mm": 1000,
+    "height_mm": 500,
+    "skin_mm": 2.5,
+    "flange_width_mm": 50,
+    "flange_thickness_mm": 12,
+    "holes_per_end": 18,
+    "hole_diameter_mm": 15,
+    "bolt_circle_mm": 970,
+    "longitudinal_count": 12,
+    "ring_count": 5,
+    "rib_width_mm": 8,
+    "rib_height_mm": 12,
+    "E_MPa": 70000,
+    "poisson_ratio": 0.33,
+    "axial_force_N": 2451662.5,
+    "external_pressure_MPa": 0.2
+  },
+  "profile": "confirmed-1000x500-stiffened-cylinder",
+  "geometry_sha256": "96d53a74809decd1620697dc57673907d4f293ef3ba719ab35170d5216346077",
+  "step_data_sha256": "fd3407a838f50e4876ef7b9b8135480399479b94a6f011d6bebf608bdc27d432"
+}

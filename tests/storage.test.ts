@@ -11,7 +11,9 @@ import { builtInSkillPaths, CADFLOW_PLUGIN_ID } from '../server/builtin.js';
 test('CadFlow is bundled and cannot be installed, disabled or removed as an extension', async () => {
   const { root, cleanup } = await fixture();
   try {
-    const paths = await builtInSkillPaths(); assert.equal(paths.length, 2);
+    const paths = await builtInSkillPaths();
+    assert.deepEqual(paths.map(p => path.basename(path.resolve(p))), ['cadflow', 'thermal-sim', 'structural-sim']);
+    for (const resource of paths) await fs.access(path.join(resource, 'SKILL.md'));
     assert.match(await fs.readFile(path.join(paths[0], 'SKILL.md'), 'utf8'), /name: cadflow/);
     const manager = new Plugins(root);
     const oldInstall = path.join(manager.root, CADFLOW_PLUGIN_ID);
@@ -21,7 +23,7 @@ test('CadFlow is bundled and cannot be installed, disabled or removed as an exte
     await assert.rejects(manager.install('zion-zion-zion/CadFlow-Skill'), /已内置/);
     await assert.rejects(manager.enable(CADFLOW_PLUGIN_ID, false), /不能停用/);
     await assert.rejects(manager.remove(CADFLOW_PLUGIN_ID), /不能卸载/);
-    assert.equal((await builtInSkillPaths()).length, 2);
+    assert.deepEqual(await builtInSkillPaths(), paths);
   } finally { await cleanup(); }
 });
 
