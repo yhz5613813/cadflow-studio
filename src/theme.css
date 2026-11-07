@@ -53,3 +53,60 @@ body{background:var(--bg)}button,input,textarea,select{font:inherit}button:hover
 .tool-batch:not([open])>.tool-batch-content{display:none}
 
 .selection-mode-tools .tool-button{width:auto;min-width:29px;padding:0 8px;gap:5px;white-space:nowrap}.selection-mode-tools .tool-button>span{font-size:11px}
+
+/* Desktop embedding keeps one conversation and one project owner in the host. */
+.studio.embedded-workspace{
+  --embed-bg:#ffffff;--embed-panel:#f7f7f6;--embed-border:#e7e7e5;--embed-text:#303030;--embed-muted:#80807b;--embed-hover:#eeefeb;--embed-active:#e7ece7;
+  --line:var(--embed-border);--bg:var(--embed-bg);--panel:var(--embed-panel);--muted:var(--embed-muted);
+  display:flex;min-height:260px;grid-template-columns:none;grid-template-rows:none;background:var(--embed-bg);color:var(--embed-text);
+}
+.studio.embedded-workspace[data-theme=dark]{
+  color-scheme:dark;--embed-bg:#1d1d1f;--embed-panel:#252527;--embed-border:#39393c;--embed-text:#e3e3e5;--embed-muted:#a2a2a8;--embed-hover:#313135;--embed-active:#39423d;
+}
+.embedded-workspace>.topbar,.embedded-workspace>.navigator,.embedded-workspace>.agent-panel,.embedded-workspace>.statusbar,.embedded-workspace>.navigation-scrim{display:none!important}
+.embedded-workspace>.model-workspace{flex:1;width:100%;padding:0 10px 10px;background:var(--embed-bg)}
+.embedded-workspace-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:46px;flex-shrink:0;border-bottom:1px solid var(--embed-border)}
+.embedded-workspace-tabs,.embedded-file-actions{display:flex;align-items:center;gap:3px}
+.embedded-workspace-tabs{min-width:0;overflow-x:auto}
+.embedded-workspace-tabs button{height:31px;padding:0 9px;font-size:11px;white-space:nowrap;border-radius:6px;color:var(--embed-muted)}
+.embedded-workspace-tabs button[aria-current=page]{background:var(--embed-active);color:var(--embed-text);font-weight:600}
+.embedded-file-actions{flex-shrink:0}
+.embedded-workspace .workspace-heading{height:46px;min-height:46px;gap:6px}
+.embedded-workspace .workspace-heading h1{font-size:14px;color:var(--embed-text)}
+.embedded-workspace .workspace-kicker,.embedded-workspace .workspace-actions>button[aria-label="专注工作区"]{display:none}
+.embedded-project-state{padding:18px 8px;color:var(--embed-muted);line-height:1.7}
+.embedded-project-state[role=alert]{color:#ce7563}
+.embedded-selection-context{display:flex;align-items:center;gap:7px;min-height:30px;padding:2px 8px;margin-top:7px;background:var(--embed-active);border-radius:7px;color:var(--embed-text);font-size:11px}
+.embedded-selection-context>span:first-of-type{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.embedded-selection-context>.icon-button{width:24px;height:24px;margin-left:auto}
+.embedded-selection-hint{margin-left:auto;white-space:nowrap;color:var(--embed-muted);font-size:10px}
+.embedded-workspace .model-stage{border-color:var(--embed-border);border-radius:9px}
+.embedded-workspace .viewports{min-height:90px}
+.embedded-workspace .viewport-heading,.embedded-workspace .viewport-toolbar,.embedded-workspace .dock-tabs{background:var(--embed-panel);border-color:var(--embed-border)}
+.embedded-workspace .document-tab,.embedded-workspace .compare-button,.embedded-workspace .tool-button,.embedded-workspace .dock-tabs>button,.embedded-workspace .icon-button,.embedded-workspace .workspace-menu>summary{color:var(--embed-muted)}
+.embedded-workspace .icon-button:hover,.embedded-workspace .tool-button:hover,.embedded-workspace .embedded-workspace-tabs button:hover{background:var(--embed-hover);color:var(--embed-text)}
+.embedded-workspace .tool-button.active{background:var(--embed-active);color:var(--embed-text)}
+.embedded-workspace .bottom-dock,.embedded-workspace .files-dock,.embedded-workspace .properties-dock,.embedded-workspace .activity-dock,.embedded-workspace .source-dock{background:var(--embed-bg);border-color:var(--embed-border)}
+.embedded-workspace .files-dock,.embedded-workspace .properties-dock,.embedded-workspace .activity-dock{height:145px;max-height:30vh}
+.embedded-workspace .source-dock{height:230px;max-height:40vh}
+.embedded-workspace .artifact-row{border-color:var(--embed-border)}
+.embedded-workspace .artifact-row.active{background:var(--embed-active)}
+.embedded-workspace .artifact-name,.embedded-workspace .files-empty strong,.embedded-workspace .properties-dock strong,.embedded-workspace .dock-tabs>button.active{color:var(--embed-text)}
+.embedded-workspace .artifact-name small,.embedded-workspace .file-size,.embedded-workspace .files-empty p,.embedded-workspace .small-empty{color:var(--embed-muted)}
+.embedded-workspace .workspace-menu-items,.embedded-workspace .modal,.embedded-workspace .toast{background:var(--embed-bg);color:var(--embed-text);border-color:var(--embed-border)}
+.embedded-workspace .workspace-menu-items button{color:var(--embed-text)}
+.embedded-workspace .workspace-menu-items button:hover,.embedded-workspace .tree-row:hover,.embedded-workspace .tree-item:hover{background:var(--embed-hover)}
+.embedded-workspace .button,.embedded-workspace .text-button,.embedded-workspace input,.embedded-workspace select,.embedded-workspace textarea,.embedded-workspace .parametric-panel button,.embedded-workspace .structural-panel button{background:var(--embed-panel);color:var(--embed-text);border-color:var(--embed-border)}
+.embedded-workspace .source-bar,.embedded-workspace .workspace-content{border-color:var(--embed-border)}
+.embedded-workspace[data-theme=dark] :is(.parametric-validation,.parametric-session,.parametric-empty,.structural-controls,.structural-controls-body,.structural-metric,.cylinder-object-sidebar){background:var(--embed-panel)!important;color:var(--embed-text);border-color:var(--embed-border)!important}
+.embedded-workspace[data-theme=dark] :is(.structural-panel,.parametric-panel,.tree-item,.tree-root,.tree-row,.model-group-heading>button,.field,.modal h2,.properties-dock,.activity-dock pre){color:var(--embed-text)}
+.embedded-workspace[data-theme=dark] :is(.parametric-panel pre,.modal pre,.activity-dock details){background:var(--embed-panel);color:var(--embed-muted);border-color:var(--embed-border)}
+@media(max-width:620px){
+  .embedded-workspace>.model-workspace{padding:0 6px 6px}
+  .embedded-workspace-bar{gap:3px;flex-wrap:wrap;padding:5px 0}
+  .embedded-workspace-tabs button{padding:0 7px;gap:4px}
+  .embedded-file-actions{margin-left:auto}
+  .embedded-file-actions .icon-button{width:26px;height:28px}
+  .embedded-selection-hint{display:none}
+  .embedded-workspace .cylinder-object-sidebar{width:210px}
+}

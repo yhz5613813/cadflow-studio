@@ -54,6 +54,20 @@ test('real pi SDK: model stream → write tool → artifact → answer, session 
     assert.equal(revisions[1].files, 0);
     assert.equal((await history.file(project.id, revisions[0].id, 'artifacts/pi-verified.txt')).toString(), 'Written by the real pi SDK tool.');
     const messages = await store.messages(project.id); assert(messages.some(m => m.role === 'tool' && m.toolName === 'write')); assert(messages.some(m => m.role === 'assistant' && m.text.includes('文件已')));
+    const writeMessage = messages.find(m => m.role === 'tool' && m.toolName === 'write')!;
+    assert.deepEqual(writeMessage.args, { path: 'artifacts/pi-verified.txt', content: 'Written by the real pi SDK tool.' });
+    const saved = JSON.parse(await fs.readFile(path.join(store.projectRoot(project.id), 'messages.json'), 'utf8'));
+    assert.deepEqual(saved.find((m: any) => m.id === writeMessage.id).args, writeMessage.args);
+    // Simulate an older Studio transcript that kept only the result. The API must
+    // recover its exact input from the real Pi log, without changing that log.
+    const sessionDir = path.join(store.projectRoot(project.id), 'sessions');
+    const sessionFiles = (await fs.readdir(sessionDir)).filter(file => file.endsWith('.jsonl'));
+    const originalLogs = await Promise.all(sessionFiles.map(file => fs.readFile(path.join(sessionDir, file), 'utf8')));
+    for (const message of saved) delete message.args;
+    await fs.writeFile(path.join(store.projectRoot(project.id), 'messages.json'), JSON.stringify(saved));
+    const recovered = await fetch(`${url}/api/projects/${project.id}/messages`).then(r => r.json());
+    assert.deepEqual(recovered.find((m: any) => m.id === writeMessage.id).args, writeMessage.args);
+    assert.deepEqual(await Promise.all(sessionFiles.map(file => fs.readFile(path.join(sessionDir, file), 'utf8'))), originalLogs);
     assert((await fs.readdir(path.join(store.projectRoot(project.id), 'sessions'))).some(f => f.endsWith('.jsonl')));
     await harness.invalidate(); await plugins.enable('fixture-skill', false);
     assert.equal((await post(`/api/projects/${project.id}/prompt`, { text: 'Confirm the previous file.' })).status, 202); await waitIdle(project.id);

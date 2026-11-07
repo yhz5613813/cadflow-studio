@@ -6,3 +6,4 @@ The editor and runtime are embedded as a managed CAStudio module.
 CAStudio additions: worker lifecycle, project routes, cylinder notebook, semantic boundary and exact CAD equivalence bridge, shell solver integration.
 
 CAStudio patches: short per-user cache paths on Windows; editor save/publication handshake; core.clone_semantic_shape_view hash shortlist retaining exact topology predicate and wire-equivalence checks.
+CAStudio patch (2026-10-23): adaptive volume integration in inspect/brep/diagnostics.py for consistent material-difference and component volume checks; integration estimates are exposed without changing geometric validation thresholds.

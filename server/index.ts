@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { createApp } from './app.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const { app, builds, thermal, structural, parametric, cylinderObjects } = await createApp(path.resolve(process.env.STUDIO_DATA_DIR || path.join(root, '.studio')));
+const { app, builds, thermal, structural, parametric, cylinderObjects, cadInspections } = await createApp(path.resolve(process.env.STUDIO_DATA_DIR || path.join(root, '.studio')));
 if (process.argv.includes('--dev')) {
   const { createServer } = await import('vite');
   const vite = await createServer({ root, server: { middlewareMode: true }, appType: 'spa' });
@@ -15,4 +15,4 @@ if (process.argv.includes('--dev')) {
 }
 const port = Number(process.env.STUDIO_PORT || 4317);
 app.listen(port, '127.0.0.1', () => console.log(`CadFlow Studio → http://127.0.0.1:${port}`));
-for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void Promise.allSettled([builds.dispose(), thermal.dispose(), structural.dispose(), parametric.dispose(), cylinderObjects.dispose()]).finally(() => process.exit(0)); });
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void Promise.allSettled([builds.dispose(), thermal.dispose(), structural.dispose(), parametric.dispose(), cylinderObjects.dispose(), cadInspections.dispose()]).finally(() => process.exit(0)); });

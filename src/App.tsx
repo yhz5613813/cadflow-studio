@@ -1,4 +1,6 @@
 import { choosePreview } from './scene/preview-file';
+import { readHostTheme } from './host-theme';
+import type { CSSProperties } from 'react';
 import { ConversationMessages } from './components/ConversationMessages';
 import { ParametricPanel } from './components/ParametricPanel';
 import { CylinderObjectsPanel } from './components/CylinderObjectsPanel';
@@ -15,6 +17,7 @@ import { ReviewPanel } from './components/ReviewPanel';
 import { ThermalPanel } from './components/ThermalPanel';
 import { BuildPanel } from './components/BuildPanel';
 import { MeasurementPanel } from './components/MeasurementPanel';
+import { CadInspectionPanel } from './components/CadInspectionPanel';
 import type { ReviewNote } from '../shared/types';
 import type { PreviewState } from './scene/review-selection';
 import { SceneInspector } from './components/SceneInspector';
@@ -29,14 +32,37 @@ const initialOptions: ViewOptions = { edges: true, grid: true, ortho: false, sec
 const sizeLabel = (bytes: number) => bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 function ToolButton({ label, active, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) { return <button className={`tool-button ${active ? 'active' : ''}`} title={label} aria-label={label} aria-pressed={active} onClick={onClick}>{children}</button>; }
 export default function App() {
+  const [embedding] = useState(() => {
+    const query = new URLSearchParams(window.location.search);
+    return { enabled: query.get('embedded') === '1', nativeHarness: query.get('harness') === 'dsh', projectId: query.get('project'), theme: query.get('theme') === 'dark' ? 'dark' : 'light' };
+  });
+  const [projectError, setProjectError] = useState('');
+  const [embeddedTheme, setEmbeddedTheme] = useState<'light' | 'dark'>(embedding.theme === 'dark' ? 'dark' : 'light');
+  const [hostTheme, setHostTheme] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!embedding.enabled) return;
+    const onHostMessage = (event: MessageEvent) => {
+      if (event.source !== window.parent || window.parent === window || event.data?.projectId !== embedding.projectId) return;
+      const parentOrigin = document.referrer ? new URL(document.referrer).origin : 'null';
+      if (parentOrigin !== 'null' && event.origin !== parentOrigin) return;
+      if (event.data?.type === 'castudio:theme' && ['light', 'dark'].includes(event.data.theme)) {
+        setEmbeddedTheme(event.data.theme);
+        setHostTheme(readHostTheme(event.data.tokens));
+      }
+    };
+    window.addEventListener('message', onHostMessage);
+    const parentOrigin = document.referrer ? new URL(document.referrer).origin : 'null';
+    window.parent.postMessage({ type: 'castudio:ready', projectId: embedding.projectId }, parentOrigin === 'null' ? '*' : parentOrigin);
+    return () => window.removeEventListener('message', onHostMessage);
+  }, [embedding.enabled, embedding.projectId]);
   const [structuralSource,setStructuralSource]=useState('');
   const [publishedStructuralSource, setPublishedStructuralSource] = useState('');
   const [structuralSourceRequest, setStructuralSourceRequest] = useState(0);
   type Workspace = 'model' | 'parametric' | 'structural' | 'thermal';
   const [workspaceMode, setWorkspaceMode] = useState<Workspace>('model');
   const [visited, setVisited] = useState<Workspace[]>(['model']);
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 760);
-  const [assistantOpen, setAssistantOpen] = useState(() => window.innerWidth >= 1200);
+  const [sidebarOpen, setSidebarOpen] = useState(() => !embedding.enabled && window.innerWidth >= 760);
+  const [assistantOpen, setAssistantOpen] = useState(() => !embedding.enabled && window.innerWidth >= 1200);
   const openWorkspace = (mode: Workspace) => {
     setWorkspaceMode(mode); setVisited(old => old.includes(mode) ? old : [...old, mode]);
     if (window.innerWidth < 760) setSidebarOpen(false);
@@ -55,12 +81,30 @@ export default function App() {
   const requestedPreview = useRef<{ projectId: string; path: string } | null>(null);
   const [meshes, setMeshes] = useState<MeshInfo[]>([]), [selection, setSelection] = useState<Selection | null>(null), [options, setOptions] = useState(initialOptions);
   const [dialog, updateDialog] = useState<'plugins' | 'settings' | 'new' | 'projects' | 'resources' | 'history' | 'scene' | 'reviews' | 'builds' | 'structural' | 'parametric' | 'thermal' | 'measurements' | null>(null), [newName, setNewName] = useState(''), [toast, setToast] = useState('');
+  const [geometryTab, setGeometryTab] = useState<'cad' | 'mesh'>('cad');
   const [dock, setDock] = useState<'files' | 'source' | 'properties' | 'activity' | null>(null), [treeTab, setTreeTab] = useState<'model' | 'files'>('model');
   const [sourcePath, setSourcePath] = useState(''), [sourceText, setSourceText] = useState(''), [savedText, setSavedText] = useState(''), [sending, setSending] = useState(false);
   const view = useRef<ViewportHandle>(null), referenceView = useRef<ViewportHandle>(null), upload = useRef<HTMLInputElement>(null), chatEnd = useRef<HTMLDivElement>(null);
   const currentProject = useRef<string>(''), assetRef = useRef<Artifact | null>(null); assetRef.current = asset;
   const projectEpoch = useRef(0), fileRequest = useRef(0), appliedFileRequest = useRef(0);
   const notify = (text: string) => setToast(text);
+  const postWorkspaceMessage = useCallback((type: 'castudio:selection' | 'castudio:draft' | 'castudio:settings-changed', data: Record<string, unknown>) => {
+    if (!embedding.enabled || !project || window.parent === window) return;
+    // Electron file origins are opaque; the host checks this frame's source, origin and project.
+    const parentOrigin = document.referrer ? new URL(document.referrer).origin : 'null';
+    window.parent.postMessage({ type, projectId: project.id, ...data }, parentOrigin === 'null' ? '*' : parentOrigin);
+  }, [embedding.enabled, project?.id]);
+  useEffect(() => {
+    postWorkspaceMessage('castudio:selection', { selection: selection ? { ...selection, file: asset?.path || 'UI demonstration mesh', isDemo: !asset } : null });
+  }, [postWorkspaceMessage, selection, asset?.path]);
+  const appendConversationContext = (text: string) => {
+    if (embedding.enabled) {
+      postWorkspaceMessage('castudio:draft', { text, selection: selection ? { ...selection, file: asset?.path || 'UI demonstration mesh', isDemo: !asset } : null });
+    } else {
+      setDraft(old => old ? `${old}\n\n${text}` : text);
+      setAssistantOpen(true);
+    }
+  };
   const parameterEdits = useRef({ dirty: false, working: false });
   const trackParameterEdits = useCallback((state: { dirty: boolean; working: boolean }) => { parameterEdits.current = state; }, []);
   const setDialog = (next: typeof dialog) => {
@@ -72,8 +116,25 @@ export default function App() {
     updateDialog(next);
   };
   useEffect(() => { if (dialog !== 'projects') return; let live = true; void api.projects().then(list => { if (live) setProjects(list); }).catch(e => { if (live) notify(e.message); }); return () => { live = false; }; }, [dialog]);
-  const refreshGlobal = useCallback(async () => { const [s, p, list] = await Promise.all([api.status(), api.plugins(), api.projects()]); setStatus(s); setPlugins(p); setProjects(list); }, []);
-  useEffect(() => { void (async () => { try { const list = await api.projects(); const first = list[0] || await api.createProject('我的第一个设计'); setProject(list.find(p=>p.id===(new URLSearchParams(location.search).get('project')||localStorage.getItem('pi-studio-project'))) || first); setProjects(list.length ? list : [first]); await refreshGlobal(); } catch (e) { notify((e as Error).message); } })(); }, [refreshGlobal]);
+  const refreshGlobal = useCallback(async () => {
+    if (embedding.nativeHarness) { setProjects(await api.projects()); return; }
+    const [s, p, list] = await Promise.all([api.status(), api.plugins(), api.projects()]); setStatus(s); setPlugins(p); setProjects(list);
+  }, [embedding.nativeHarness]);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const list = await api.projects();
+        const requested = list.find(p => p.id === (embedding.projectId || (!embedding.enabled && localStorage.getItem('pi-studio-project'))));
+        if (embedding.enabled && !requested) throw new Error('未找到指定项目，请在桌面端重新选择项目。');
+        const selected = requested || list[0] || await api.createProject('我的第一个设计');
+        if (!live) return;
+        setProject(selected); setProjects(list.length ? list : [selected]);
+        await refreshGlobal();
+      } catch (e) { if (live) { const message = (e as Error).message; setProjectError(message); notify(message); } }
+    })();
+    return () => { live = false; };
+  }, [embedding, refreshGlobal]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 7000); return () => clearTimeout(timer); }, [toast]);
   const refreshFiles = useCallback(async (id: string) => {
     if (currentProject.current !== id) return;
@@ -149,9 +210,9 @@ export default function App() {
     setCylinderObjectsOpen(panelPreference === '1'); setCylinderObjectsVisited(panelPreference === '1');
     const id = project.id; localStorage.setItem('pi-studio-project',id); currentProject.current = id; setPendingReview(null); setPreview(null); setAsset(null); assetRef.current = null; setReference(null); setMessages([]); setSelection(null); setSourcePath(''); setSourceText(''); setSavedText(''); setBusy(false);
     let live = true;
-    void api.messages(id).then(m => { if (live) setMessages(m); }).catch(e => notify(e.message));
+    if (!embedding.nativeHarness) void api.messages(id).then(m => { if (live) setMessages(m); }).catch(e => notify(e.message));
     void refreshFiles(id).catch(e => notify(e.message));
-    void api.status().then(s => { if (live) { setStatus(s); setBusy(s.busyProjects.includes(id)); } }).catch(() => {});
+    if (!embedding.nativeHarness) void api.status().then(s => { if (live) { setStatus(s); setBusy(s.busyProjects.includes(id)); } }).catch(() => {});
     const events = new EventSource(`/api/projects/${id}/events`);
     events.onmessage = event => {
       if (!live) return; const payload = JSON.parse(event.data) as StudioEvent, data = payload.data;
@@ -164,10 +225,10 @@ export default function App() {
       if (payload.type === 'run_end') { setBusy(false); void refreshGlobal(); }
       if (payload.type === 'artifacts_changed' || payload.type === 'run_end') void refreshFiles(id);
     };
-    events.onopen = () => { void api.status().then(s => { if (live) setBusy(s.busyProjects.includes(id)); }).catch(() => {}); };
+    events.onopen = () => { if (!embedding.nativeHarness) void api.status().then(s => { if (live) setBusy(s.busyProjects.includes(id)); }).catch(() => {}); };
     const timer = setInterval(() => void refreshFiles(id).catch(() => {}), 3500);
     return () => { live = false; projectEpoch.current++; currentProject.current = ''; clearInterval(timer); events.close(); };
-  }, [project?.id, refreshFiles, refreshGlobal]);
+  }, [project?.id, refreshFiles, refreshGlobal, embedding.nativeHarness]);
   useEffect(() => { chatEnd.current?.scrollIntoView({ block: 'end', behavior: 'smooth' }); }, [messages.length, busy]);
   const doUpload = async (file: File) => {
     if (!project) return;
@@ -216,7 +277,7 @@ export default function App() {
     const warn = (event: BeforeUnloadEvent) => { if (sourceDirty) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn);
   }, [sourceDirty]);
-  return <div className={`studio ${sidebarOpen ? "sidebar-open" : "sidebar-closed"} ${assistantOpen ? "assistant-open" : "assistant-closed"}`} onDragOver={e => { e.preventDefault(); }} onDrop={e => { e.preventDefault(); if (e.dataTransfer.files[0]) void doUpload(e.dataTransfer.files[0]); }}>
+  return <div className={`studio ${embedding.enabled ? 'embedded-workspace' : ''} ${embedding.nativeHarness ? 'dsh-workspace' : ''} ${sidebarOpen ? "sidebar-open" : "sidebar-closed"} ${assistantOpen ? "assistant-open" : "assistant-closed"}`} data-theme={embeddedTheme} style={hostTheme as CSSProperties} onDragOver={e => { e.preventDefault(); }} onDrop={e => { e.preventDefault(); if (e.dataTransfer.files[0]) void doUpload(e.dataTransfer.files[0]); }}>
 
     <header className="topbar">
       <div className="breadcrumb"><button className="icon-button" aria-label="切换项目导航" aria-expanded={sidebarOpen} onClick={() => setSidebarOpen(!sidebarOpen)}><PanelLeft size={18}/></button><button className="project-breadcrumb" onClick={() => setDialog('projects')} title={project?.name}>{project?.name || '正在打开项目'}<ChevronDown size={13}/></button><span className="header-divider"/><span className="workspace-breadcrumb">{workspaceTitle}</span></div>
@@ -240,6 +301,23 @@ export default function App() {
       <div className="navigator-bottom"><button onClick={() => setDialog('plugins')}><Package size={16}/>扩展</button><button onClick={() => setDialog('settings')}><Settings2 size={16}/>设置</button><span className="local-workspace"><span className="status-dot"/>本地工作空间</span></div>
     </aside>
     <main className="model-workspace">
+      {embedding.enabled && <div className="embedded-workspace-bar">
+        <nav aria-label="CAD 工作区" className="embedded-workspace-tabs">
+          <button aria-current={workspaceMode === 'model' ? 'page' : undefined} onClick={() => openWorkspace('model')}><Box size={14}/><span>模型</span></button>
+          <button aria-current={workspaceMode === 'parametric' ? 'page' : undefined} onClick={() => setDialog('parametric')}><SlidersHorizontal size={14}/><span>参数化</span></button>
+          <button aria-current={workspaceMode === 'structural' ? 'page' : undefined} onClick={() => setDialog('structural')}><FlaskConical size={14}/><span>结构</span></button>
+          <button aria-current={workspaceMode === 'thermal' ? 'page' : undefined} onClick={() => setDialog('thermal')}><Thermometer size={14}/><span>热分析</span></button>
+        </nav>
+        <div className="embedded-file-actions">
+          <button className="icon-button" aria-label="导入文件" title="导入文件" onClick={() => upload.current?.click()}><Upload size={15}/></button>
+          <button className="icon-button" aria-label="模型部件" title="模型部件" onClick={() => setDialog('resources')}><Layers3 size={15}/></button>
+          <button className="icon-button" aria-label="项目文件" title="项目文件" onClick={() => { openWorkspace('model'); setDock('files'); }}><FolderOpen size={15}/></button>
+          <button className="icon-button" aria-label="项目历史" title="项目历史" onClick={() => setDialog('history')}><History size={15}/></button>
+          {!embedding.nativeHarness && <button className="icon-button" aria-label="模型设置" title="模型设置" onClick={() => setDialog('settings')}><Settings2 size={15}/></button>}
+        </div>
+      </div>}
+      {embedding.enabled && !project && <div className="embedded-project-state" role={projectError ? 'alert' : 'status'}>{projectError || '正在打开 CAD 工作区…'}</div>}
+      {embedding.enabled && selection && <div className="embedded-selection-context"><MousePointer2 size={13}/><span>{selection.name}{selection.cadFace ? ` · STEP 面 ${selection.cadFace.index}` : selection.triangle !== undefined ? ` · 网格面 ${selection.triangle}` : ''}</span><span className="embedded-selection-hint">可在输入框中管理引用</span><button className="icon-button" aria-label="清除选择上下文" onClick={() => setSelection(null)}><X size={13}/></button></div>}
       <div className="workspace-heading"><div><span className="workspace-kicker">{workspaceMode === 'model' ? 'DESIGN' : workspaceMode === 'parametric' ? 'MODELING' : 'ANALYSIS'}</span><h1>{workspaceTitle}</h1></div><div className="workspace-actions">{workspaceMode === 'model' && project && <button className={'cylinder-objects-toggle' + (cylinderObjectsOpen ? ' active' : '')} aria-label="圆柱对象" aria-pressed={cylinderObjectsOpen} aria-controls="cylinder-object-sidebar" onClick={() => toggleCylinderObjects(!cylinderObjectsOpen)}><SlidersHorizontal size={15}/><span>圆柱对象</span></button>}<button className="icon-button" aria-label="专注工作区" title="收起导航与助手" onClick={() => { setSidebarOpen(false); setAssistantOpen(false); }}><Maximize size={17}/></button><details className="workspace-menu"><summary aria-label="工程工具" title="工程工具"><MoreHorizontal size={20}/></summary><div className="workspace-menu-items">
        <button onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); setDialog('builds'); }}><Terminal size={16}/>构建与运行</button>
        <button onClick={e => { e.currentTarget.closest('details')?.removeAttribute('open'); setDialog('measurements'); }}><ScanLine size={16}/>几何检查</button>
@@ -248,18 +326,18 @@ export default function App() {
       </div></details></div></div>
       <section className="model-stage" hidden={workspaceMode !== 'model'} aria-label="模型工作区"><div className="viewport-heading"><div className="document-tab"><Box size={14}/><span>{asset?.name || '法兰装配 · 预览示例'}</span>{demo ? <span className="demo-dot"/> : <span className="status-dot"/>}</div><button className={`compare-button ${comparison ? 'active' : ''}`} onClick={() => setComparison(!comparison)}><Columns2 size={14}/>对比视图</button></div>
       <div className="viewport-toolbar"><div className="tool-group selection-mode-tools"><ToolButton label="选择部件" active={options.mode === 'component'} onClick={() => setOption('mode', 'component')}><MousePointer2 size={16}/><span>部件</span></ToolButton><ToolButton label="选择面（STEP 面或网格三角面）" active={options.mode === 'face'} onClick={() => setOption('mode', 'face')}><ScanLine size={16}/><span>{/\.(step|stp)$/i.test(asset?.name || '') ? '几何面' : '三角面'}</span></ToolButton><span className="toolbar-label">{options.mode === 'component' ? '部件选择' : '面选择'}</span></div><div className="tool-group"><ToolButton label="边线" active={options.edges} onClick={() => setOption('edges', !options.edges)}><Box size={16}/></ToolButton><ToolButton label="网格" active={options.grid} onClick={() => setOption('grid', !options.grid)}><Grid2X2 size={16}/></ToolButton><ToolButton label="正交投影" active={options.ortho} onClick={() => setOption('ortho', !options.ortho)}><Square size={15}/></ToolButton><ToolButton label="剖切" active={options.section < 100} onClick={() => setOption('section', options.section < 100 ? 100 : 60)}><Scissors size={16}/></ToolButton><ToolButton label="拆分显示" active={options.explode > 0} onClick={() => setOption('explode', options.explode > 0 ? 0 : 30)}><Layers3 size={16}/></ToolButton></div><div className="toolbar-spacer"/><ToolButton label="保存视口截图" onClick={() => view.current?.snapshot()}><Camera size={16}/></ToolButton><ToolButton label="适应视图" onClick={() => { view.current?.fit(); referenceView.current?.fit(); }}><Maximize size={16}/></ToolButton></div>
-      <div className="model-canvas-layout"><div className={`viewports ${comparison ? 'compare' : ''}`}><Viewport key={`result-${project?.id || ''}`} ref={view} projectId={project?.id} url={modelUrl} name={asset?.name} demo={demo} options={options} onMeshes={receiveMeshes} onSelection={receiveSelection} onPackage={setScenePackage} onPreview={setPreview} label={comparison ? '当前设计' : undefined}/>{comparison && <Viewport key={`reference-${project?.id}-${reference?.revision || 'current'}-${reference?.path || ''}`} ref={referenceView} url={reference && project ? reference.revision ? api.revisionFileUrl(project.id, reference.revision, reference.path) : `${api.fileUrl(project.id, reference.path)}&v=${reference.modified}` : undefined} name={reference?.name} options={options} label={reference?.revisionLabel ? `历史 · ${reference.revisionLabel}` : '参考模型'}/>}<div className="canvas-meta"><span>{demo ? '交互示例 · 非 CAD 验证结果' : /\.(zip|scadpkg)$/i.test(asset.name) ? scenePackage ? '场景包 · mm · 装配与摘要已校验' : '归档模型预览' : /\.(step|stp)$/i.test(asset.name) ? 'STEP 预览 · mm · 面对应信息' : '本地模型预览'}</span><span>{meshes.length} 个网格 · {Math.round(meshes.reduce((sum, m) => sum + m.triangles, 0)).toLocaleString()} 三角面</span></div>{options.section < 100 && <div className="section-control"><Scissors size={14}/><span>Z 剖切</span><input aria-label="剖切位置" type="range" min="0" max="100" value={options.section} onChange={e => setOption('section', Number(e.target.value))}/><span>{options.section}%</span><button className="icon-button" aria-label="关闭剖切" onClick={() => setOption('section', 100)}><X size={13}/></button></div>}</div>
+      <div className="model-canvas-layout"><div className={`viewports ${comparison ? 'compare' : ''}`}><Viewport appearance={embedding.nativeHarness && hostTheme['--embed-surface'] ? { background: hostTheme['--embed-surface'], dark: embeddedTheme === 'dark' } : undefined} key={`result-${project?.id || ''}`} ref={view} projectId={project?.id} url={modelUrl} name={asset?.name} demo={demo} options={options} onMeshes={receiveMeshes} onSelection={receiveSelection} onPackage={setScenePackage} onPreview={setPreview} label={comparison ? '当前设计' : undefined}/>{comparison && <Viewport appearance={embedding.nativeHarness && hostTheme['--embed-surface'] ? { background: hostTheme['--embed-surface'], dark: embeddedTheme === 'dark' } : undefined} key={`reference-${project?.id}-${reference?.revision || 'current'}-${reference?.path || ''}`} ref={referenceView} url={reference && project ? reference.revision ? api.revisionFileUrl(project.id, reference.revision, reference.path) : `${api.fileUrl(project.id, reference.path)}&v=${reference.modified}` : undefined} name={reference?.name} options={options} label={reference?.revisionLabel ? `历史 · ${reference.revisionLabel}` : '参考模型'}/>}<div className="canvas-meta"><span>{demo ? '交互示例 · 非 CAD 验证结果' : /\.(zip|scadpkg)$/i.test(asset.name) ? scenePackage ? '场景包 · mm · 装配与摘要已校验' : '归档模型预览' : /\.(step|stp)$/i.test(asset.name) ? 'STEP 预览 · mm · 面对应信息' : '本地模型预览'}</span><span>{meshes.length} 个网格 · {Math.round(meshes.reduce((sum, m) => sum + m.triangles, 0)).toLocaleString()} 三角面</span></div>{options.section < 100 && <div className="section-control"><Scissors size={14}/><span>Z 剖切</span><input aria-label="剖切位置" type="range" min="0" max="100" value={options.section} onChange={e => setOption('section', Number(e.target.value))}/><span>{options.section}%</span><button className="icon-button" aria-label="关闭剖切" onClick={() => setOption('section', 100)}><X size={13}/></button></div>}</div>
       {project && cylinderObjectsVisited && <aside id="cylinder-object-sidebar" className="cylinder-object-sidebar" hidden={!cylinderObjectsOpen}><CylinderObjectsPanel projectId={project.id} selectedId={cylinderSelectedId} onSelect={selectCylinderObject} onPreview={path => showCylinderPreview(project.id, path)} onSimulate={source => { setStructuralSource(source); setStructuralSourceRequest(n => n + 1); setDialog('structural'); }} onChanged={() => refreshFiles(project.id)}/></aside>}
       </div>
       <div className={`bottom-dock ${dock ? 'open' : ''}`}><div className="dock-tabs"><button className={dock === 'files' ? 'active' : ''} onClick={() => setDock(dock === 'files' ? null : 'files')}><FolderOpen size={13}/>文件 <span>{files.length}</span></button><button className={dock === 'source' ? 'active' : ''} onClick={() => setDock(dock === 'source' ? null : 'source')}><Braces size={14}/>源码{sourceDirty && <span className="demo-dot"/>}</button><button className={dock === 'properties' ? 'active' : ''} onClick={() => setDock(dock === 'properties' ? null : 'properties')}><SlidersIcon/>属性</button><button className={dock === 'activity' ? 'active' : ''} onClick={() => setDock(dock === 'activity' ? null : 'activity')}><Terminal size={13}/>运行记录</button><div className="toolbar-spacer"/><button className="icon-button" aria-label={dock ? '折叠底部面板' : '展开底部面板'} onClick={() => setDock(dock ? null : 'files')}>{dock ? <Minus size={14}/> : <PanelBottom size={14}/>}</button></div>
       {dock === 'files' && <div className="files-dock">{files.length === 0 ? <div className="files-empty"><div className="file-empty-icon"><FilePlus2 size={23}/></div><div><strong>让想法成为第一个文件</strong><p>导入 GLB、STL、OBJ 或 STEP，或向 Agent 描述你的设计。</p></div><button className="button" onClick={() => upload.current?.click()}><Plus size={13}/>导入文件</button></div> : <div className="file-list">{files.map(file => <div className={`artifact-row ${asset?.path === file.path ? 'active' : ''}`} key={file.path}><button className="artifact-name" onClick={() => file.kind === 'model' ? setAsset(file) : file.kind === 'source' ? void openSource(file) : undefined}>{file.kind === 'model' ? <Box size={15}/> : <FileText size={15}/>}<span title={file.path}><strong>{file.name}</strong><small>{file.path.startsWith('imports/') ? '导入文件' : file.path.includes('/') ? file.path.slice(0,file.path.lastIndexOf('/')) : '项目文件'}</small></span></button><span className="file-size">{sizeLabel(file.size)}</span>{file.kind === 'model' && <button className="text-button" onClick={() => { setReference(file); setComparison(true); }}>设为参考</button>}<a className="icon-button" aria-label={`下载 ${file.name}`} href={api.fileUrl(project!.id, file.path)} download={file.name}><Download size={14}/></a></div>)}</div>}</div>}
-      {dock === 'source' && <div className="source-dock"><div className="source-bar"><select aria-label="选择源码文件" value={sourcePath} onChange={e => { const f = files.find(f => f.path === e.target.value); if (f) void openSource(f); }}><option value="">选择一个源文件</option>{files.filter(f => f.kind === 'source').map(f => <option key={f.path} value={f.path}>{f.name}</option>)}</select><button className="text-button" disabled={busy || !sourcePath || !sourceDirty} onClick={async () => { try { await api.saveSource(project!.id, sourcePath, sourceText, savedText); setSavedText(sourceText); notify('源码已保存'); } catch (e) { notify((e as Error).message); } }}><Save size={13}/>保存</button><button className="text-button" disabled={busy || !project} onClick={() => void createSource()}>新建 Python</button></div>{sourcePath ? <SourceEditor value={sourceText} onChange={setSourceText} readOnly={busy}/> : <div className="small-empty">打开 Agent 生成的 Python，或新建一个源文件开始编辑。</div>}</div>}
+      {dock === 'source' && <div className="source-dock"><div className="source-bar"><select aria-label="选择源码文件" value={sourcePath} onChange={e => { const f = files.find(f => f.path === e.target.value); if (f) void openSource(f); }}><option value="">选择一个源文件</option>{files.filter(f => f.kind === 'source').map(f => <option key={f.path} value={f.path}>{f.name}</option>)}</select><button className="text-button" disabled={busy || !sourcePath || !sourceDirty} onClick={async () => { try { await api.saveSource(project!.id, sourcePath, sourceText, savedText); setSavedText(sourceText); notify('源码已保存'); } catch (e) { notify((e as Error).message); } }}><Save size={13}/>保存</button><button className="text-button" disabled={busy || !project} onClick={() => void createSource()}>新建 Python</button></div>{sourcePath ? <SourceEditor theme={embedding.nativeHarness ? embeddedTheme : undefined} value={sourceText} onChange={setSourceText} readOnly={busy}/> : <div className="small-empty">打开 Agent 生成的 Python，或新建一个源文件开始编辑。</div>}</div>}
       {dock === 'properties' && <div className="properties-dock"><SelectionProperties selection={selection} selectFace={(id, face) => view.current?.selectFace(id, face) ?? false}/></div>}
       {dock === 'activity' && <div className="activity-dock">{messages.filter(m => m.role === 'tool' || m.role === 'system').length ? messages.filter(m => m.role === 'tool' || m.role === 'system').map(m => <details key={m.id}><summary><span className={m.error ? 'error-text' : 'positive'}>●</span>{m.toolName || '系统'}<time>{new Date(m.timestamp).toLocaleTimeString()}</time></summary><pre>{m.text}</pre></details>) : <div className="small-empty">Agent 运行后，这里会记录工具调用与错误信息。</div>}</div>}</div>
       </section>
       {project && visited.includes('parametric') && <section className="workspace-content parametric-workspace" hidden={workspaceMode !== 'parametric'} aria-label="参数化建模工作区"><ParametricPanel key={project.id} projectId={project.id} changed={() => refreshFiles(project.id)} simulate={source => { setStructuralSource(source); void refreshFiles(project.id); setDialog('structural'); }}/></section>}
       {project && visited.includes('structural') && <section className="workspace-content" hidden={workspaceMode !== 'structural'} aria-label="结构仿真工作区"><StructuralPanel key={project.id} projectId={project.id} initialSource={structuralSource} defaultSource={publishedStructuralSource} sourceRequest={structuralSourceRequest} files={files} changed={() => refreshFiles(project.id)}/></section>}
-      {project && visited.includes('thermal') && <section className="workspace-content" hidden={workspaceMode !== 'thermal'} aria-label="热仿真工作区"><ThermalPanel key={project.id} projectId={project.id} files={files} initialSource={asset?.path} busy={busy} changed={() => refreshFiles(project.id)} feedback={text => { setDraft(old => old ? old + '\n\n' + text : text); setAssistantOpen(true); }}/></section>}
+      {project && visited.includes('thermal') && <section className="workspace-content" hidden={workspaceMode !== 'thermal'} aria-label="热仿真工作区"><ThermalPanel key={project.id} projectId={project.id} files={files} initialSource={asset?.path} busy={busy} changed={() => refreshFiles(project.id)} feedback={text => { appendConversationContext(text); notify('分析反馈已加入对话草稿'); }}/></section>}
     </main>
     <aside className="agent-panel" aria-label="设计助手"><div className="agent-heading"><div className="agent-title"><div className="agent-spark"><MessageSquare size={18}/></div><h2>设计助手</h2><span className="pill">AI</span></div><button className="icon-button" aria-label="收起设计助手" onClick={() => setAssistantOpen(false)}><X size={17}/></button></div><button className="model-selector" onClick={() => setDialog('settings')}><span className={`status-dot ${status?.hasCredentials ? '' : 'neutral'}`}/><span>{activeModel || '连接一个模型，开始设计'}</span><ChevronDown size={13}/></button>
       <div className="conversation">{messages.length === 0 && <div className="welcome"><div className="welcome-mark"><BrandIcon size={40}/></div><span className="eyebrow">DESIGN WITH AI</span><h2>一起完成<br/><em>下一个设计。</em></h2><p>描述你的设计意图，或选中一个部件。在这里编写代码、检查结构与导出模型。</p><div className="suggestions">{['创建一块带 4 个安装孔的支架', '检查我导入的模型尺寸', '修改参数并导出 STEP 和 GLB'].map((text, i) => <button key={text} onClick={() => setDraft(text)}>{i === 0 ? <Box size={16}/> : i === 1 ? <Crosshair size={16}/> : <FileCode2 size={16}/>}<span>{text}</span><ChevronRight size={13}/></button>)}</div><div className="welcome-foot"><Box size={13}/>参数化建模 · 装配 · 几何检查</div></div>}
@@ -278,11 +356,14 @@ export default function App() {
       setMessages(await api.messages(id)); await refreshGlobal();
     }} preview={(revision, file) => { setReference({ ...file, name: file.path.split('/').pop() || file.path, kind: 'model', modified: Date.parse(revision.createdAt), revision: revision.id, revisionLabel: revision.label }); setComparison(true); openWorkspace('model'); setDialog(null); }}/>}
     {dialog === 'builds' && project && <Dialog title="构建与运行环境" subtitle="执行项目源码，检查日志，保留每次构建成果。" close={() => setDialog(null)}><BuildPanel key={project.id} filesChanged={() => refreshFiles(project.id)} editState={trackParameterEdits} projectId={project.id} files={files} initialSource={sourcePath} sourceDirty={sourceDirty} busy={busy} published={path => { void refreshFiles(project.id); openWorkspace('model'); setDock('files'); notify(`产物已另存到 ${path}`); }}/></Dialog>}
-    {dialog === 'measurements' && project && <Dialog title="几何检查与对比" subtitle="检查显示网格，保存测量，比较不同版本。" close={() => setDialog(null)}><MeasurementPanel key={project.id} projectId={project.id} anchor={reviewAnchor} busy={busy} currentFile={asset?.path} currentHash={preview?.status === 'ready' && preview.url === modelUrl ? preview.identity?.sourceHash : undefined} measure={(anchor, signal) => view.current ? view.current.measure(anchor, signal) : Promise.reject(new Error('视口尚未就绪'))} context={text => { setDraft(old => old ? `${old}\n${text}` : text); setDialog(null); setAssistantOpen(true); notify('检查结果已加入对话草稿'); }}/></Dialog>}
-    {dialog === 'reviews' && project && <Dialog title="批注与检查清单" subtitle="把设计意图绑定到几何，跟踪处理结果。" close={() => setDialog(null)}><ReviewPanel key={project.id} projectId={project.id} anchor={reviewAnchor} currentFile={asset?.path} currentHash={preview?.status === 'ready' && preview.url === modelUrl ? preview.identity?.sourceHash : undefined} revision={reviewRevision} busy={busy} locate={locateReview} context={text => { setDraft(old => old ? `${old}\n${text}` : text); setDialog(null); setAssistantOpen(true); notify('批注已加入对话草稿'); }}/></Dialog>}
-    {dialog === 'scene' && <Dialog title="场景与特征" subtitle="查看装配、特征依赖与包内源码快照。" close={() => setDialog(null)}>{scenePackage ? <SceneInspector info={scenePackage} selectedNodeId={selection?.packageMesh?.nodeId} select={id => { view.current?.select(id); }} context={text => { setDraft(old => old ? `${old}\n${text}` : text); setDialog(null); setAssistantOpen(true); notify('特征信息已加入对话草稿'); }}/> : <div className="small-empty">当前没有已载入的场景包。</div>}</Dialog>}
+    {dialog === 'measurements' && project && <Dialog title="几何检查与对比" subtitle="检查 CAD 实体属性、比较材料变化，或检查预览网格。" close={() => setDialog(null)}>
+      <div className="geometry-check-tabs" role="tablist" aria-label="几何检查方法"><button role="tab" aria-selected={geometryTab === 'cad'} onClick={() => setGeometryTab('cad')}>CAD 实体检查</button><button role="tab" aria-selected={geometryTab === 'mesh'} onClick={() => setGeometryTab('mesh')}>预览网格检查</button></div>
+      {geometryTab === 'cad' ? <CadInspectionPanel key={project.id} projectId={project.id} files={files} currentFile={asset?.path} currentHash={preview?.status === 'ready' && preview.url === modelUrl ? preview.identity?.sourceHash : undefined} reference={reference ? {path:reference.path,revision:reference.revision,label:reference.revisionLabel} : undefined} changed={() => refreshFiles(project.id)} context={text => { appendConversationContext(text); setDialog(null); notify('CAD 检查结果已加入对话草稿'); }} preview={path => { showCylinderPreview(project.id,path); setComparison(false); openWorkspace('model'); setDialog(null); }} compare={(source,baseline) => { const ref=files.find(f=>f.path===baseline); if(ref){setReference(ref);setComparison(true);showCylinderPreview(project.id,source);openWorkspace('model');setDialog(null);}else notify('参考文件列表正在更新，请稍后重试'); }}/> : <MeasurementPanel key={project.id} projectId={project.id} anchor={reviewAnchor} busy={busy} currentFile={asset?.path} currentHash={preview?.status === 'ready' && preview.url === modelUrl ? preview.identity?.sourceHash : undefined} measure={(anchor, signal) => view.current ? view.current.measure(anchor, signal) : Promise.reject(new Error('视口尚未就绪'))} context={text => { appendConversationContext(text); setDialog(null); notify('检查结果已加入对话草稿'); }}/>}
+    </Dialog>}
+    {dialog === 'reviews' && project && <Dialog title="批注与检查清单" subtitle="把设计意图绑定到几何，跟踪处理结果。" close={() => setDialog(null)}><ReviewPanel key={project.id} projectId={project.id} anchor={reviewAnchor} currentFile={asset?.path} currentHash={preview?.status === 'ready' && preview.url === modelUrl ? preview.identity?.sourceHash : undefined} revision={reviewRevision} busy={busy} locate={locateReview} context={text => { appendConversationContext(text); setDialog(null); notify('批注已加入对话草稿'); }}/></Dialog>}
+    {dialog === 'scene' && <Dialog title="场景与特征" subtitle="查看装配、特征依赖与包内源码快照。" close={() => setDialog(null)}>{scenePackage ? <SceneInspector info={scenePackage} selectedNodeId={selection?.packageMesh?.nodeId} select={id => { view.current?.select(id); }} context={text => { appendConversationContext(text); setDialog(null); notify('特征信息已加入对话草稿'); }}/> : <div className="small-empty">当前没有已载入的场景包。</div>}</Dialog>}
     {dialog === 'plugins' && <PluginDialog plugins={plugins} refresh={refreshGlobal} close={() => setDialog(null)}/>}
-    {dialog === 'settings' && <SettingsDialog status={status} refresh={refreshGlobal} close={() => setDialog(null)}/>}
+    {dialog === 'settings' && <SettingsDialog status={status} refresh={async () => { await refreshGlobal(); postWorkspaceMessage('castudio:settings-changed', {}); }} close={() => setDialog(null)}/>}
     {dialog === 'new' && <Dialog title="新建设计项目" subtitle="每个项目保存独立的源码、模型和设计会话。" close={() => setDialog(null)}><form onSubmit={async e => { e.preventDefault(); if (!canLeaveSource()) return; try { const created = await api.createProject(newName || '新设计'); setProject(created); setNewName(''); await refreshGlobal(); setDialog(null); } catch (e) { notify((e as Error).message); } }}><label className="field">项目名称<input autoFocus value={newName} onChange={e => setNewName(e.target.value)} placeholder="例如：减速器安装支架" maxLength={80}/></label><button className="button primary full" type="submit"><Plus size={16}/>创建项目</button></form></Dialog>}
     {dialog === 'projects' && <Dialog title="项目" subtitle="继续一个设计，或从新的想法开始。" close={() => setDialog(null)}><div className="project-list">{projects.map(p => <button key={p.id} onClick={() => { if (p.id !== project?.id && !canLeaveSource()) return; setProject(p); setDialog(null); }}><FolderOpen size={19}/><span><strong>{p.name}</strong><small>{new Date(p.updatedAt).toLocaleString()}</small></span>{project?.id === p.id && <Check size={16}/>}</button>)}</div><button className="button primary full" onClick={() => setDialog('new')}><Plus size={16}/>新建项目</button></Dialog>}
     {toast && <div className="toast" role="status"><Circle size={12}/><span>{toast}</span><button className="icon-button" aria-label="关闭提示" onClick={() => setToast('')}><X size={13}/></button></div>}

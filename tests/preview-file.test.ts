@@ -37,6 +37,14 @@ test('analysis snapshots never become the default model, including after preferr
   assert.equal(choosePreview([snapshot]), undefined);
 });
 
+test('CAD inspection snapshots and material differences do not replace the editable default design', () => {
+  const snapshot = file('studio/cad-inspections/run/source.step');
+  const difference = file('studio/cad-inspections/run/excess_material.step');
+  const design = file('imports/design.step');
+  assert.equal(choosePreview([difference, snapshot, design]), design);
+  assert.equal(choosePreview([difference, snapshot]), undefined);
+});
+
 test('projects without cylinder objects retain their previous default and same-export CAD fallback', () => {
   const assembly = file('assembly.scadpkg');
   const step = file('exports/new/design.step');

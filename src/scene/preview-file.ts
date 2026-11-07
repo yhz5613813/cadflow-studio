@@ -4,7 +4,7 @@ import type { Artifact } from '../../shared/types';
 // so they must not replace the editable design when reopening the project.
 export function choosePreview(files: Artifact[], preferredPath?: string): Artifact | undefined {
   const models = files.filter(file => file.kind === 'model'
-    && !file.path.startsWith('structural/')
+    && !file.path.startsWith('structural/') && !file.path.startsWith('studio/cad-inspections/')
     && /\.(glb|gltf|stl|obj|step|stp|scadpkg|zip)$/i.test(file.name));
   const preferred = preferredPath ? models.find(file => file.path === preferredPath) : undefined;
   if (preferred) return preferred;

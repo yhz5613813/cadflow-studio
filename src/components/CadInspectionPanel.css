@@ -1,0 +1,25 @@
+.modal:has(.cad-inspection-panel){width:min(1080px,96vw);max-width:96vw}
+.geometry-check-tabs{display:flex;gap:6px;border-bottom:1px solid var(--border,#ddd);margin:0 0 18px;padding-bottom:10px}
+.geometry-check-tabs button{border:1px solid transparent;border-radius:7px;background:transparent;color:inherit;padding:8px 13px;cursor:pointer}
+.geometry-check-tabs button[aria-selected=true]{background:#e8efec;border-color:#d6e1db;color:#21493d;font-weight:600}
+.cad-inspection-panel{font-size:13px;line-height:1.6;color:var(--text,#303633)}
+.cad-inspection-panel p{margin:8px 0}.cad-inspection-panel h3,.cad-inspection-panel h4{margin:8px 0 12px}
+.cad-inspection-inputs{display:grid;grid-template-columns:1fr 1fr minmax(160px,.55fr);gap:14px;margin:18px 0}
+.cad-inspection-inputs label{display:grid;gap:6px;font-weight:500;min-width:0}
+.cad-inspection-panel select,.cad-inspection-panel input{min-width:0;width:100%;border:1px solid #d7dcd7;background:#fff;border-radius:7px;padding:8px;color:#303633;font:inherit}
+.cad-inspection-panel small{display:block;color:#737c75;font-weight:400}.cad-inspection-panel .build-actions{align-items:center;flex-wrap:wrap;gap:8px}
+.cad-inspection-panel .build-actions>span{color:#737c75;font-size:12px}
+.cad-inspection-results{border-top:1px solid #e2e5e1;margin-top:24px;padding-top:14px}
+.cad-inspection-heading{display:flex;gap:14px;align-items:center;justify-content:space-between}.cad-inspection-heading select{max-width:340px}.cad-inspection-heading h3{white-space:nowrap}
+.cad-inspection-run{display:flex;gap:12px;align-items:center;margin:12px 0}.cad-inspection-run>span{overflow-wrap:anywhere;color:#737c75;font-size:12px;flex:1}
+.cad-property-columns{display:grid;gap:14px}.cad-property-columns.compared{grid-template-columns:1fr 1fr}
+.cad-properties{padding:16px;border:1px solid #dfe4df;border-radius:9px;background:#f9faf8;min-width:0}
+.cad-inspection-panel dl{margin:0}.cad-inspection-panel dl>div{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #e6e9e4}.cad-inspection-panel dl>div:last-child{border:0}
+.cad-inspection-panel dt{color:#6b756d}.cad-inspection-panel dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.cad-check-ok{color:#2d6550;font-size:12px}.cad-check-warning{color:#8c632d;background:#fbf7ed;padding:8px 11px;border-radius:6px;overflow-wrap:anywhere}
+.cad-inspection-log,.cad-inspection-bodies{margin:12px 0}.cad-inspection-panel summary{cursor:pointer;color:#68746b;padding:6px 0}
+.cad-inspection-log pre{white-space:pre-wrap;max-height:180px;overflow:auto;background:#f5f6f3;padding:12px;font-size:11px}
+.cad-material-difference{margin:18px 0;padding:16px;border:1px solid #dfe4df;border-radius:9px}
+.cad-material-difference dl{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+.cad-table-scroll{overflow-x:auto}.cad-table-scroll table{width:100%;border-collapse:collapse;font-size:12px}.cad-table-scroll th,.cad-table-scroll td{padding:8px;border-bottom:1px solid #e2e5e1;text-align:left;white-space:nowrap}
+@media(max-width:760px){.cad-inspection-inputs,.cad-property-columns.compared{grid-template-columns:1fr}.cad-inspection-heading{align-items:stretch;flex-direction:column;gap:0}.cad-inspection-heading select{max-width:none}.cad-material-difference dl{grid-template-columns:1fr}}

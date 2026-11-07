@@ -30,3 +30,9 @@ test('ordinary projects retain their STEP fallback when no valid publication exi
   assert.equal(chooseStructuralSource([snapshot, model], '', 'missing.step'), model.path);
   assert.equal(chooseStructuralSource([], ''), '');
 });
+
+test('CAD inspection outputs cannot become automatic structural inputs', () => {
+  const inspection = file('studio/cad-inspections/run/excess_material.step'), model = file('imports/model.step');
+  assert.equal(chooseStructuralSource([inspection, model], ''), model.path);
+  assert.equal(chooseStructuralSource([inspection], ''), '');
+});

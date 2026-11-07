@@ -19,8 +19,10 @@ from OCP.BRepBuilderAPI import (
 )
 from OCP.BRepCheck import BRepCheck_Analyzer
 from OCP.BRepExtrema import BRepExtrema_DistShapeShape
+from OCP.BRepGProp import BRepGProp
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
 from OCP.GeomAPI import GeomAPI_ProjectPointOnSurf
+from OCP.GProp import GProp_GProps
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_SOLID, TopAbs_VERTEX
 from OCP.TopExp import TopExp
 from OCP.TopTools import TopTools_IndexedMapOfShape, TopTools_ListOfShape
@@ -631,12 +633,33 @@ def compare_material_rdescriptor(
         _require_positive(boolean_tolerance, "boolean_tolerance")
     if output_directory is not None and not include_components:
         raise ValueError("output_directory requires include_components=True")
+    # CAStudio: use one adaptive integration policy for aggregates and their
+    # solid components. Default non-adaptive GProp integration can disagree
+    # across those decompositions by more than the existing consistency gate,
+    # even when every BREP and the material balance are valid. Keep all geometry
+    # and consistency gates; improve the numerical integration instead.
+    integration_eps = 1.0e-10
+    integration_errors: list[float] = []
+
+    def integrated_properties(shape: TopoDS_Shape, description: str):
+        properties = GProp_GProps()
+        relative_error = float(BRepGProp.VolumeProperties_s(
+            shape, properties, integration_eps, True, False
+        ))
+        volume = float(properties.Mass())
+        if (not math.isfinite(volume) or volume < 0.0 or
+                not math.isfinite(relative_error) or relative_error < 0.0 or
+                relative_error > integration_eps):
+            raise BRepEntityError(f"{description} failed adaptive volume integration")
+        integration_errors.append(relative_error)
+        return volume, properties
+
     target_model = _model(target)
     current_model = _model(current)
     target_material = _material_shape(target_model)
     current_material = _material_shape(current_model)
-    target_volume = _material_volume(target_material, "Target material")
-    current_volume = _material_volume(current_material, "Current material")
+    target_volume, _ = integrated_properties(target_material, "Target material")
+    current_volume, _ = integrated_properties(current_material, "Current material")
     same_material_instance = target_material.IsSame(current_material)
 
     if same_material_instance:
@@ -651,7 +674,7 @@ def compare_material_rdescriptor(
             current_material,
             boolean_tolerance,
         )
-        common_volume = _material_volume(common_shape, "Material intersection")
+        common_volume, _ = integrated_properties(common_shape, "Material intersection")
         volume_epsilon = max(abs(target_volume), abs(current_volume), 1.0) * 1.0e-12
         missing_volume = max(target_volume - common_volume, 0.0)
         excess_volume = max(current_volume - common_volume, 0.0)
@@ -690,12 +713,19 @@ def compare_material_rdescriptor(
             _component_summary(shape, f"excess:{index}", "excess_material")
             for index, shape in enumerate(excess_solids)
         ]
-        missing_volume = float(sum(item["volume"] for item in missing_components))
-        excess_volume = float(sum(item["volume"] for item in excess_components))
-        missing_shape_volume = _material_volume(
+        for component, solid in zip(
+            [*missing_components, *excess_components],
+            [*missing_solids, *excess_solids],
+        ):
+            volume, properties = integrated_properties(solid, component["component_id"])
+            component["volume"] = volume
+            component["centroid"] = xyz(properties.CentreOfMass())
+        missing_volume = math.fsum(item["volume"] for item in missing_components)
+        excess_volume = math.fsum(item["volume"] for item in excess_components)
+        missing_shape_volume, _ = integrated_properties(
             missing_shape, "Missing-material result"
         )
-        excess_shape_volume = _material_volume(excess_shape, "Excess-material result")
+        excess_shape_volume, _ = integrated_properties(excess_shape, "Excess-material result")
         volume_epsilon = (
             max(
                 missing_shape_volume,
@@ -776,6 +806,11 @@ def compare_material_rdescriptor(
         },
         "boolean_result_valid": boolean_result_valid,
         "strict_equality_supported": strict_equality_supported,
+        "volume_integration": {
+            "method": "adaptive_gauss",
+            "requested_relative_error": integration_eps,
+            "maximum_estimated_relative_error": max(integration_errors, default=0.0),
+        },
         "volume_balance": {
             "expected_target_minus_current": expected_volume_delta,
             "observed_missing_minus_excess": observed_volume_delta,

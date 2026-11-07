@@ -8,4 +8,5 @@ import './scene-package.css';
 import './reviews.css';
 import './builds.css';
 import './theme.css';
+import './dsh-workspace.css';
 createRoot(document.getElementById('root')!).render(<App/>);

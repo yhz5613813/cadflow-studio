@@ -11,6 +11,7 @@ import { Thermal } from './thermal.js';
 import { builtInSkillPaths } from './builtin.js';
 import { ChatGPTAuth } from './login.js';
 import { History } from './history.js';
+import { restoreToolArguments } from './tool-history.js';
 
 const contentText = (content: unknown): string => Array.isArray(content) ? content.filter(c => c && c.type === 'text').map(c => c.text).join('\n') : typeof content === 'string' ? content : '';
 export class PiHarness {
@@ -39,6 +40,9 @@ export class PiHarness {
     return runtime;
   }
   isBusy(id: string) { return this.running.has(id); }
+  async messages(id: string): Promise<Message[]> {
+    return restoreToolArguments(await this.store.messages(id), path.join(this.store.projectRoot(id), 'sessions'));
+  }
   async connectOpenAI(apiKey: string) {
     await this.invalidate();
     const runtime = await this.runtime();
@@ -132,6 +136,7 @@ export class PiHarness {
   private async execute(id: string, session: AgentSession, text: string, selection: unknown, release: () => void) {
     let assistantId = randomUUID();
     const writeQueue: Promise<unknown>[] = [];
+    const toolArguments = new Map<string, unknown>();
     const save = (m: Message) => { writeQueue.push(this.store.addMessage(id, m)); this.events.emit(id, 'message', m as unknown as Record<string, unknown>); };
     const unsubscribe = session.subscribe(event => {
       if (event.type === 'message_start' && event.message.role === 'assistant') assistantId = randomUUID();
@@ -141,9 +146,15 @@ export class PiHarness {
         const result = contentText(message.content);
         if (result || message.errorMessage) save({ id: assistantId, role: 'assistant', text: result || message.errorMessage || '模型返回错误', timestamp: Date.now(), error: message.stopReason === 'error' });
       }
-      if (event.type === 'tool_execution_start') this.events.emit(id, 'tool_start', { id: event.toolCallId, toolName: event.toolName, args: event.args });
+      if (event.type === 'tool_execution_start') {
+        toolArguments.set(event.toolCallId, event.args);
+        this.events.emit(id, 'tool_start', { id: event.toolCallId, toolName: event.toolName, args: event.args });
+      }
       if (event.type === 'tool_execution_update') this.events.emit(id, 'tool_update', { id: event.toolCallId, text: contentText(event.partialResult?.content).slice(-16000) });
-      if (event.type === 'tool_execution_end') save({ id: event.toolCallId, role: 'tool', text: contentText(event.result?.content).slice(0, 64000), toolName: event.toolName, error: event.isError, timestamp: Date.now() });
+      if (event.type === 'tool_execution_end') {
+        save({ id: event.toolCallId, role: 'tool', text: contentText(event.result?.content).slice(0, 64000), toolName: event.toolName, args: toolArguments.get(event.toolCallId), error: event.isError, timestamp: Date.now() });
+        toolArguments.delete(event.toolCallId);
+      }
     });
     const timer = setTimeout(() => void session.abort(), 20 * 60 * 1000);
     try {

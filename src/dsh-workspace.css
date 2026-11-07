@@ -1,0 +1,203 @@
+/* DSH owns the palette and typeface; only the embedded engineering surface uses this treatment. */
+.studio.embedded-workspace.dsh-workspace {
+  --embed-surface: var(--embed-panel);
+  --embed-subtle: var(--embed-muted);
+  --embed-accent: var(--embed-text);
+  --embed-radius: 12px;
+  --embed-control-radius: 8px;
+  --accent: var(--embed-accent);
+  --hover: var(--embed-hover);
+  font-family: var(--embed-font, inherit);
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 400;
+  min-height: 0;
+}
+
+.dsh-workspace :is(button, input, select, textarea) { font-family: inherit; }
+.dsh-workspace :is(h1, h2, h3, h4, strong, b) { font-weight: 500; color: var(--embed-text); letter-spacing: normal; }
+.dsh-workspace :is(button, summary) { color: var(--embed-text); }
+.dsh-workspace :is(button, a, summary):focus-visible { outline: 2px solid var(--embed-accent); outline-offset: 2px; }
+.dsh-workspace :is(button, input, select, textarea):disabled { opacity: .4; }
+.dsh-workspace svg { flex-shrink: 0; color: inherit; }
+.studio.dsh-workspace > .model-workspace { padding: 0; background: var(--embed-bg); }
+
+.dsh-workspace .embedded-workspace-bar {
+  min-height: 42px;
+  padding: 0 12px;
+  gap: 8px;
+  border-color: var(--embed-border);
+}
+.dsh-workspace .embedded-workspace-tabs { align-self: stretch; gap: 12px; }
+.dsh-workspace .embedded-workspace-tabs button {
+  position: relative;
+  min-height: 40px;
+  height: 100%;
+  padding: 0 2px;
+  gap: 5px;
+  font-size: 12px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--embed-muted);
+  font-weight: 400;
+}
+.dsh-workspace .embedded-workspace-tabs button[aria-current=page] {
+  background: transparent;
+  color: var(--embed-accent);
+  font-weight: 500;
+}
+.dsh-workspace .embedded-workspace-tabs button[aria-current=page]::after {
+  content: '';
+  position: absolute;
+  height: 2px;
+  bottom: 0;
+  left: 2px;
+  right: 2px;
+  background: currentColor;
+  border-radius: 2px;
+}
+.dsh-workspace .embedded-file-actions { gap: 2px; }
+.dsh-workspace .workspace-heading { padding: 0 12px; min-height: 42px; height: 42px; }
+.dsh-workspace .workspace-heading h1 { font-size: 13px; line-height: 20px; font-weight: 500; }
+.dsh-workspace .workspace-actions { gap: 4px; }
+.dsh-workspace .workspace-actions .cylinder-objects-toggle {
+  height: 28px; padding: 0 8px; font-size: 12px; font-weight: 400;
+  border: 0; border-radius: var(--embed-control-radius);
+  background: transparent; color: var(--embed-text);
+}
+.dsh-workspace .workspace-actions .cylinder-objects-toggle:is(:hover, .active) {
+  background: var(--embed-hover); color: var(--embed-text);
+}
+.dsh-workspace :is(.button, .text-button, .tool-button, .icon-button, .workspace-menu>summary) {
+  border: 0;
+  box-shadow: none;
+  border-radius: var(--embed-control-radius);
+  height: 28px;
+  color: var(--embed-text);
+  background: transparent;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
+}
+.dsh-workspace :is(.button, .text-button) { padding: 0 10px; }
+.dsh-workspace :is(.icon-button, .tool-button, .workspace-menu>summary) { width: 28px; min-width: 28px; }
+.dsh-workspace :is(.button, .text-button, .tool-button, .icon-button, .workspace-menu>summary):hover {
+  color: var(--embed-text); background: var(--embed-hover);
+}
+.dsh-workspace :is(.tool-button.active, .button.active, .compare-button.active) {
+  color: var(--embed-text); background: var(--embed-active);
+}
+.dsh-workspace .button.primary {
+  color: var(--embed-primary-text); background: var(--embed-primary);
+}
+.dsh-workspace .selection-mode-tools .tool-button { width: auto; padding: 0 8px; gap: 4px; }
+.dsh-workspace .selection-mode-tools .tool-button > span { font-size: 12px; }
+.dsh-workspace .embedded-selection-context {
+  margin: 0 12px 8px;
+  padding: 4px 8px;
+  border-radius: var(--embed-control-radius);
+  background: var(--embed-surface);
+  color: var(--embed-text);
+  font-size: 12px;
+}
+.dsh-workspace .embedded-selection-hint { color: var(--embed-subtle); font-size: 11px; }
+
+.dsh-workspace .model-stage { border: 0; border-radius: 0; background: var(--embed-bg); }
+.dsh-workspace .viewport-heading {
+  min-height: 36px; height: 36px; padding: 0 12px;
+  background: var(--embed-bg); border-top: 1px solid var(--embed-border);
+}
+.dsh-workspace .document-tab { height: 34px; font-size: 12px; color: var(--embed-muted); }
+.dsh-workspace .document-tab > span:first-of-type { max-width: 100%; }
+.dsh-workspace .compare-button { font-size: 12px; padding: 0 6px; border-radius: var(--embed-control-radius); }
+.dsh-workspace .viewport-toolbar {
+  min-height: 38px; height: 38px; gap: 8px; padding: 0 12px;
+  background: var(--embed-bg);
+  border-top: 0; border-bottom: 1px solid var(--embed-border);
+}
+.dsh-workspace .tool-group { gap: 2px; border-color: var(--embed-border); }
+.dsh-workspace :is(.viewports, .viewport) { background: var(--embed-surface); }
+.dsh-workspace .canvas-meta {
+  background: var(--embed-panel); color: var(--embed-muted);
+  border: 1px solid var(--embed-border); border-radius: var(--embed-control-radius);
+  padding: 6px 8px; font-size: 11px;
+}
+.dsh-workspace .canvas-meta :is(strong, span, span:first-child) { color: inherit; font-size: inherit; font-weight: 400; }
+.dsh-workspace :is(.viewport-empty, .viewport-error, .viewport-notice, .section-control) {
+  background: var(--embed-panel); color: var(--embed-text); border-color: var(--embed-border);
+  border-radius: var(--embed-radius); box-shadow: none;
+}
+.dsh-workspace :is(.viewport-empty, .viewport-error) :is(p, span) { color: var(--embed-muted); }
+
+.dsh-workspace .bottom-dock { background: var(--embed-bg); border-color: var(--embed-border); }
+.dsh-workspace .dock-tabs {
+  height: 38px; gap: 16px; padding: 0 12px; background: var(--embed-bg);
+}
+.dsh-workspace .dock-tabs > button:not(.icon-button) { font-size: 12px; color: var(--embed-muted); gap: 5px; }
+.dsh-workspace .dock-tabs > button.active { color: var(--embed-accent); }
+.dsh-workspace .dock-tabs > button.active::after { background: currentColor; }
+.dsh-workspace :is(.dock-tabs, .tabs) span {
+  background: var(--embed-surface); color: var(--embed-subtle); font-size: 11px;
+}
+.dsh-workspace :is(.artifact-name, .file-size, .file-tree-row, .tree-item, .tree-root) { font-size: 12px; }
+.dsh-workspace :is(.artifact-name small, .file-size, .field small, .small-empty, .empty-state) { color: var(--embed-subtle); }
+.dsh-workspace :is(.artifact-row, .tree-item, .file-tree-row):hover { background: var(--embed-hover); }
+.dsh-workspace :is(.artifact-row.active, .tree-item.selected, .file-tree-row.active) { background: var(--embed-active); color: var(--embed-text); }
+.dsh-workspace :is(.files-dock, .properties-dock, .activity-dock, .source-dock) { background: var(--embed-bg); color: var(--embed-text); }
+.dsh-workspace :is(.properties-dock, .activity-dock) :is(span:not(.eyebrow), small, pre) { color: var(--embed-muted); }
+.dsh-workspace .workspace-content { padding: 12px; background: var(--embed-bg); }
+.dsh-workspace :is(.workspace-content, .modal) :is(input, select, textarea) {
+  padding: 6px 10px; font-size: 13px; line-height: 20px;
+  border: 1px solid var(--embed-border); border-radius: var(--embed-control-radius);
+  background: var(--embed-bg); color: var(--embed-text);
+}
+.dsh-workspace :is(input, select, textarea):focus { outline: 2px solid var(--embed-accent); }
+.dsh-workspace :is(input[type=checkbox], input[type=range]) { accent-color: var(--embed-accent); }
+.dsh-workspace :is(.parametric-panel, .structural-panel, .thermal-panel, .cylinder-object-sidebar) {
+  color: var(--embed-text); font-size: 13px; background: var(--embed-bg); border-color: var(--embed-border);
+}
+.dsh-workspace :is(.parametric-validation, .parametric-session, .parametric-empty, .structural-controls, .structural-controls-body, .structural-metric, .thermal-controls, .thermal-metric) {
+  background: var(--embed-surface) !important; color: var(--embed-text);
+  border-color: var(--embed-border) !important; border-radius: var(--embed-control-radius);
+}
+.dsh-workspace :is(.parametric-panel, .structural-panel, .thermal-panel) :is(button, .button) {
+  font-size: 12px; font-weight: 400; min-height: 28px; padding: 4px 10px;
+  border: 1px solid var(--embed-border); border-radius: var(--embed-control-radius);
+  background: var(--embed-panel); color: var(--embed-text);
+}
+.dsh-workspace :is(.parametric-panel, .structural-panel, .thermal-panel) :is(p, small, label, th, td, .eyebrow):not(.form-error):not([role=alert]) { color: var(--embed-muted); }
+.dsh-workspace :is(.parametric-panel, .structural-panel, .thermal-panel) :is(pre, table, td, th) { border-color: var(--embed-border); }
+.dsh-workspace .thermal-panel { gap: 12px; }
+.dsh-workspace .thermal-panel > :is(section, details) {
+  padding: 14px; background: var(--embed-surface); border-color: var(--embed-border);
+  border-radius: var(--embed-radius); color: var(--embed-text);
+}
+.dsh-workspace .thermal-panel h3 { font-size: 13px; font-weight: 500; color: var(--embed-text); }
+.dsh-workspace .thermal-panel label { font-size: 12px; }
+.dsh-workspace :is(.modal, .workspace-menu-items) {
+  background: var(--embed-panel); border: 1px solid var(--embed-border); border-radius: var(--embed-radius); color: var(--embed-text);
+}
+.dsh-workspace .workspace-menu-items button { border-radius: var(--embed-control-radius); color: var(--embed-text); }
+.dsh-workspace .modal :is(p, label, small) { color: var(--embed-muted); }
+.dsh-workspace .cylinder-objects-panel { background: var(--embed-bg); color: var(--embed-text); }
+.dsh-workspace .cylinder-objects-panel :is(p, summary, label, small, .cylinder-object-field>span, .cylinder-object-input>span) { color: var(--embed-muted); }
+.dsh-workspace .cylinder-objects-panel :is(input, button) {
+  background: var(--embed-panel); color: var(--embed-text);
+  border-color: var(--embed-border); border-radius: var(--embed-control-radius); font-size: 12px;
+}
+.dsh-workspace .cylinder-objects-panel button:hover { background: var(--embed-hover); color: var(--embed-text); }
+.dsh-workspace .cylinder-object-list button.selected { background: var(--embed-active); color: var(--embed-text); }
+.dsh-workspace :is(.cylinder-object-badge, .cylinder-object-job, .cylinder-objects-actions) { background: var(--embed-surface); color: var(--embed-muted); }
+.dsh-workspace .cylinder-objects-panel .cylinder-objects-action-row > button.cylinder-primary {
+  background: var(--embed-primary); color: var(--embed-primary-text); border-color: transparent;
+}
+.dsh-workspace ::-webkit-scrollbar-thumb { background: var(--embed-active); border-radius: 8px; }
+.dsh-workspace ::selection { background: var(--embed-active); color: var(--embed-text); }
+
+@media (max-width: 620px) {
+  .studio.dsh-workspace > .model-workspace { padding: 0; }
+  .dsh-workspace .embedded-workspace-bar { padding: 0 12px; gap: 4px; }
+  .dsh-workspace .embedded-workspace-tabs { gap: 8px; }
+  .dsh-workspace .embedded-workspace-tabs button { padding: 0 2px; }
+  .dsh-workspace .embedded-file-actions { margin-left: auto; }
+}

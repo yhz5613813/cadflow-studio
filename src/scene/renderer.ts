@@ -38,6 +38,12 @@ export class CadRenderer {
   private recordCancelled = false;
   private motorLights = new Map<THREE.Light,number>();
   private options: ViewOptions = { edges: true, grid: true, ortho: false, section: 100, explode: 0, mode: 'component' };
+  /** Apply host presentation without reloading geometry or changing the camera. */
+  setAppearance(background: string, dark: boolean) {
+    this.renderer.setClearColor(background);
+    (this.grid.material as THREE.Material).opacity = dark ? 0.12 : 0.45;
+    this.needsRender = true;
+  }
   constructor(private host: HTMLElement, private onPick: (s: Selection | null) => void, private onMotor: (state: MotorState | null) => void = () => {}) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); this.renderer.setClearColor('#f1f2ef');

@@ -1,5 +1,7 @@
 import { parametricRoutes } from './parametric.js';
+import { dshWorkspaceRoutes } from './dsh-workspace.js';
 import { cylinderObjectsRoutes } from './cylinder-objects.js';
+import { cadInspectionRoutes } from './cad-inspections.js';
 import { structuralRoutes } from './structural.js';
 import express from 'express';
 import { Thermal } from './thermal.js';
@@ -41,8 +43,10 @@ export async function createApp(dataRoot: string) {
     res.setHeader('Cache-Control', 'no-store'); next();
   });
   app.use(express.json({ limit: '8mb' }));
+  dshWorkspaceRoutes(app, store);
   const parametric=parametricRoutes(app,store,history);
   const cylinderObjects=cylinderObjectsRoutes(app,store,history,{changed:id=>{events.emit(id,'artifacts_changed',{});events.emit(id,'history_changed',{});}});
+  const cadInspections=cadInspectionRoutes(app,store,history,{changed:id=>events.emit(id,'artifacts_changed',{})});
   const structural=structuralRoutes(app,store);
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.get('/api/projects/:id/measurements', async (req, res) => res.json(await measurements.read(req.params.id)));
@@ -140,7 +144,7 @@ export async function createApp(dataRoot: string) {
   app.get('/api/projects', async (_req, res) => res.json(await store.projects()));
   app.post('/api/projects', async (req, res) => res.status(201).json(await store.createProject(String(req.body.name || '新设计'))));
   app.get('/api/projects/:id', async (req, res) => res.json(await store.project(req.params.id)));
-  app.get('/api/projects/:id/messages', async (req, res) => res.json(await store.messages(req.params.id)));
+  app.get('/api/projects/:id/messages', async (req, res) => res.json(await harness.messages(req.params.id)));
   app.get('/api/projects/:id/events', async (req, res) => { await store.project(req.params.id); events.connect(req.params.id, res, Number(req.get('last-event-id') || 0)); });
   app.post('/api/projects/:id/prompt', async (req, res) => {
     if (typeof req.body.text !== 'string' || !req.body.text.trim() || req.body.text.length > 40000) throw new HttpError(400, '请输入 1–40000 字符的消息');
@@ -256,5 +260,5 @@ export async function createApp(dataRoot: string) {
     const status = error.code === 'ENOENT' ? 404 : error.code === 'LIMIT_FILE_SIZE' ? 413 : error.status || 500;
     res.status(status).json({ error: error.code === 'LIMIT_FILE_SIZE' ? '文件不能超过 128 MB' : error.message || '请求失败' });
   });
-  return { parametric, cylinderObjects, structural, app, store, plugins, harness, events, history, builds, thermal };
+  return { parametric, cylinderObjects, cadInspections, structural, app, store, plugins, harness, events, history, builds, thermal };
 }

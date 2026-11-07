@@ -11,11 +11,13 @@ import type { MeshMetrics } from '../../shared/measurements';
 import type { MotorState } from '../scene/motor-motion';
 import '../motor-motion.css';
 export type ViewportHandle = { fit: (view?: 'iso' | 'top' | 'front' | 'right') => void; snapshot: () => void; select: (id: string) => void; selectFace: (id: string, face: number) => boolean; visible: (id: string, visible: boolean) => void; locateReview: (anchor: ReviewAnchor) => { meshId?: string; error?: string }; measure: (anchor: ReviewAnchor, signal: AbortSignal) => Promise<MeshMetrics> };
-type Props = { url?: string; name?: string; demo?: boolean; projectId?: string; options: ViewOptions; onMeshes?: (meshes: MeshInfo[]) => void; onSelection?: (selection: Selection | null) => void; onPackage?: (info: PackageInfo | null) => void; onPreview?: (state: PreviewState) => void; label?: string };
-export const Viewport = forwardRef<ViewportHandle, Props>(function Viewport({ url, name, demo, projectId, options, onMeshes, onSelection, onPackage, onPreview, label }, ref) {
+type Props = { appearance?: { background: string; dark: boolean }; url?: string; name?: string; demo?: boolean; projectId?: string; options: ViewOptions; onMeshes?: (meshes: MeshInfo[]) => void; onSelection?: (selection: Selection | null) => void; onPackage?: (info: PackageInfo | null) => void; onPreview?: (state: PreviewState) => void; label?: string };
+export const Viewport = forwardRef<ViewportHandle, Props>(function Viewport({ appearance, url, name, demo, projectId, options, onMeshes, onSelection, onPackage, onPreview, label }, ref) {
   const host = useRef<HTMLDivElement>(null), engine = useRef<CadRenderer | null>(null);
+  const appearanceRef = useRef(appearance); appearanceRef.current = appearance;
   const callbacks = useRef({ onMeshes, onSelection, onPackage, onPreview }); callbacks.current = { onMeshes, onSelection, onPackage, onPreview };
   const [error, setError] = useState(''), [loading, setLoading] = useState(false), [ready, setReady] = useState(false);
+  useEffect(() => { if (appearance && ready) engine.current?.setAppearance(appearance.background, appearance.dark); }, [appearance?.background, appearance?.dark, ready]);
   const [motor,setMotor]=useState<MotorState|null>(null),[cinema,setCinema]=useState(false),[saving,setSaving]=useState(false),[recordMessage,setRecordMessage]=useState(''),[recordUrl,setRecordUrl]=useState('');
   const [progress, setProgress] = useState('正在载入几何'), [quality, setQuality] = useState<StepQuality>('standard'), [retry, setRetry] = useState(0);
   const cancel = useRef<AbortController | null>(null), isStep = /\.(step|stp)$/i.test(name || '');
@@ -39,6 +41,7 @@ export const Viewport = forwardRef<ViewportHandle, Props>(function Viewport({ ur
         else { const response = await fetch(url!, { signal: controller.signal }); if (!response.ok) throw new Error('模型文件读取失败'); group = await loadModel(name || 'model.glb', await response.arrayBuffer(), { signal: controller.signal, quality, progress: text => { if (!cancelled) setProgress(text); } }); }
         if (cancelled || controller.signal.aborted) { group.traverse(o => { const object = o as { geometry?: { dispose(): void }; material?: { dispose(): void } | { dispose(): void }[] }; object.geometry?.dispose(); if (object.material) (Array.isArray(object.material) ? object.material : [object.material]).forEach(m => m.dispose()); }); if (!cancelled) { setError('预览已取消，可点击重试'); callbacks.current.onPreview?.({ url, status: 'error', error: '预览已取消' }); } return; }
         const meshes = engine.current!.setModel(group);
+        if (appearanceRef.current) engine.current!.setAppearance(appearanceRef.current.background, appearanceRef.current.dark);
         callbacks.current.onMeshes?.(meshes);
         callbacks.current.onPackage?.(group.userData.scenePackage || null);
         callbacks.current.onPreview?.({ url, status: 'ready', identity: group.userData.previewIdentity });
