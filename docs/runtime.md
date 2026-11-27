@@ -82,7 +82,6 @@ npm --prefix resources/simplecadapi/editor-web run build
 Push-Location resources/structural-sim
 & $solverPython -m pytest tests -q
 Pop-Location
-& $cadPython resources/parametric/tests/run_topology.py
 & $cadPython resources/parametric/tests/test_objects_io.py
 ~~~
 
